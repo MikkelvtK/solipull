@@ -1,38 +1,36 @@
 package scraper
 
 import (
-	"fmt"
 	"github.com/MikkelvtK/pul/internal/models"
+	"github.com/gocolly/colly/v2"
 	"sync"
-	"time"
 )
 
 type StandardScraper struct {
-	baseEndpoint string
-	callsMade    int
+	wg      *sync.WaitGroup
+	scraper *colly.Collector
+	urls    []string
+	results chan models.ComicBook
 }
 
-func NewLeagueOfComicGeeksScraper() *StandardScraper {
-	return &StandardScraper{
-		baseEndpoint: "https://leagueofcomicgeeks.com/solicitations",
-		callsMade:    0,
+func (s *StandardScraper) Scrape() ([]models.ComicBook, error) {
+	errs := make(chan error)
+
+	for _, url := range s.urls {
+		go s.worker(url, errs)
 	}
-}
-
-func (s *StandardScraper) Init() error {
-
-	return nil
-}
-
-func (s *StandardScraper) Scrape(month string, publishers []string) ([]models.ComicBook, error) {
 
 	return nil, nil
 }
 
-func (s *StandardScraper) worker(id int, job string, results chan<- int, wg *sync.WaitGroup) {
-	defer wg.Done()
+func (s *StandardScraper) worker(job string, errs chan<- error) {
+	defer s.wg.Done()
+	if err := s.scraper.Visit(job); err != nil {
+		errs <- err
+	}
+}
 
-	fmt.Printf("worker %d starting job %s\n", id, job)
-	time.Sleep(time.Second)
-	results <- id
+func NewLeagueOfComicGeeksScraper(months []string, publishers []string) *StandardScraper {
+
+	return &StandardScraper{}
 }
