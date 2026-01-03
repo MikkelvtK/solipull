@@ -1,7 +1,10 @@
 package main
 
-import "fmt"
+import (
+	"github.com/MikkelvtK/pul/internal/scraper"
+)
 
 func main() {
-	fmt.Println("Hello World")
+	s := scraper.NewLeagueOfComicGeeksScraper()
+	s.Scrape("Jan", []string{"DC", "Marvel", "Image"})
 }
