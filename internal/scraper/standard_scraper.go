@@ -1,6 +1,7 @@
 package scraper
 
 import (
+	"fmt"
 	"github.com/MikkelvtK/pul/internal/models"
 	"github.com/gocolly/colly/v2"
 	"sync"
@@ -11,6 +12,7 @@ type StandardScraper struct {
 	scraper *colly.Collector
 	urls    []string
 	results chan models.ComicBook
+	errs    chan error
 }
 
 func (s *StandardScraper) Scrape() ([]models.ComicBook, error) {
@@ -42,7 +44,9 @@ func (s *StandardScraper) Scrape() ([]models.ComicBook, error) {
 func (s *StandardScraper) worker(job string, errs chan<- error) {
 	defer s.wg.Done()
 
+	fmt.Println("Starting worker " + job)
 	if err := s.scraper.Visit(job); err != nil {
 		errs <- err
 	}
+	fmt.Println("Finished worker " + job)
 }

@@ -17,13 +17,6 @@ type altData struct {
 	publisher string
 }
 
-type synopsisData struct {
-	bookType string
-	price    string
-	pages    int
-}
-
-// TODO: add proper error handling
 func NewLeagueOfComicGeeksScraper(months []string, publishers []string) *StandardScraper {
 	const baseEndpoint = "https://leagueofcomicgeeks.com"
 
@@ -31,6 +24,7 @@ func NewLeagueOfComicGeeksScraper(months []string, publishers []string) *Standar
 	scraper := colly.NewCollector()
 	results := make(chan models.ComicBook, 50)
 	urls := make([]string, 0)
+	errs := make(chan error, 0)
 
 	for _, p := range publishers {
 		urls = append(urls, baseEndpoint+"/solicitations/"+p)
@@ -39,6 +33,7 @@ func NewLeagueOfComicGeeksScraper(months []string, publishers []string) *Standar
 	scraper.OnHTML(".card-solicitation", func(e *colly.HTMLElement) {
 		a, err := extractLinkAltData(e.ChildAttr("img", "alt"))
 		if err != nil {
+			errs <- err
 			return
 		}
 
@@ -52,7 +47,10 @@ func NewLeagueOfComicGeeksScraper(months []string, publishers []string) *Standar
 
 			if slices.Contains(months, a.month) {
 				l := e.ChildAttr("a", "href")
+
+				e.Request.Ctx.Put("publisher", a.publisher)
 				if err = e.Request.Visit(strings.Join([]string{baseEndpoint, l}, "")); err != nil {
+					errs <- err
 					return
 				}
 			}
@@ -64,29 +62,30 @@ func NewLeagueOfComicGeeksScraper(months []string, publishers []string) *Standar
 			Creators: make(map[string][]string),
 		}
 
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		err := extractSynopsisData(&cb, e.ChildText(".synopsis + div"))
+		if err != nil {
+			errs <- err
+			return
+		}
 
-			s := e.ChildText(".synopsis + div")
-			err := extractSynopsisData(&cb, s)
+		err = extractSummary(&cb, e.ChildTexts(".comic-summary .copy-really-large, "+
+			".comic-summary .copy-really-small"))
+		if err != nil {
+			errs <- err
+			return
+		}
+
+		e.ForEach(".creators .row", func(i int, ec *colly.HTMLElement) {
+			err = extractCreators(&cb, ec.ChildTexts(".copy-really-small, .copy-small"))
 			if err != nil {
+				errs <- err
 				return
 			}
+		})
 
-			t := e.ChildText(".comic-summary a")
-			extractSummary(&cb, t)
+		cb.Publisher = e.Request.Ctx.Get("publisher")
 
-			e.ForEach(".creators .row", func(i int, ec *colly.HTMLElement) {
-				c := ec.ChildTexts(".copy-really-small, .copy-small")
-				err = extractCreators(&cb, c)
-				if err != nil {
-					return
-				}
-			})
-
-			results <- cb
-		}()
+		results <- cb
 	})
 
 	return &StandardScraper{
@@ -134,7 +133,7 @@ func extractSynopsisData(cb *models.ComicBook, s string) error {
 		}
 	})
 
-	if len(data) != 5 {
+	if len(data) <= 3 {
 		return fmt.Errorf("invalid synopsis: %s", s)
 	}
 
@@ -154,17 +153,28 @@ func extractSynopsisData(cb *models.ComicBook, s string) error {
 	return nil
 }
 
-func extractSummary(cb *models.ComicBook, s string) {
-	t := strings.Split(s, "#")
-	cb.Title = strings.TrimSpace(t[0])
-	if len(t) > 1 {
-		n, err := strconv.Atoi(t[1])
+func extractSummary(cb *models.ComicBook, s []string) error {
+	titleRaw := s[1]
+	titleSplit := strings.Split(titleRaw, "#")
+	cb.Title = strings.TrimSpace(titleSplit[0])
+	if len(titleSplit) > 1 {
+		n, err := strconv.Atoi(titleSplit[1])
 		if err != nil {
-			cb.Title = s
+			cb.Title = titleRaw
 		} else {
 			cb.Issue = n
 		}
 	}
+
+	for _, l := range []string{"Jan 2nd, 2006", "Jan 2st, 2006", "Jan 2th, 2006"} {
+		d, err := time.Parse(l, s[0])
+		if err == nil {
+			cb.ReleaseDate = d
+			break
+		}
+	}
+
+	return nil
 }
 
 func extractCreators(cb *models.ComicBook, s []string) error {
