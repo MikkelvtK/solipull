@@ -1,15 +1,14 @@
 package models
 
-import (
-	"time"
-)
+import "time"
 
 type ComicBook struct {
 	Title       string
 	Issue       int
-	price       float32
-	Writers     []string
-	Artists     []string
+	Pages       int
+	Type        string
+	Price       string
+	Creators    map[string][]string
 	Publisher   string
 	ReleaseDate time.Time
 }

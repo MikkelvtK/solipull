@@ -1,10 +1,13 @@
 package main
 
 import (
+	"fmt"
 	"github.com/MikkelvtK/pul/internal/scraper"
 )
 
 func main() {
-	s := scraper.NewLeagueOfComicGeeksScraper([]string{"dc", "marvel", "image"})
-	s.Scrape()
+	s := scraper.NewLeagueOfComicGeeksScraper([]string{"dc"})
+	cb, _ := s.Scrape()
+
+	fmt.Println(cb)
 }
