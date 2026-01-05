@@ -7,7 +7,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -20,17 +19,24 @@ type altData struct {
 func NewLeagueOfComicGeeksScraper(months []string, publishers []string) *StandardScraper {
 	const baseEndpoint = "https://leagueofcomicgeeks.com"
 
-	wg := new(sync.WaitGroup)
-	scraper := colly.NewCollector()
+	listScraper := colly.NewCollector(
+		colly.AllowedDomains("leagueofcomicgeeks.com"),
+		colly.Async(true),
+	)
+	detailScraper := listScraper.Clone()
 	results := make(chan models.ComicBook, 50)
 	urls := make([]string, 0)
-	errs := make(chan error, 0)
+	errs := make(chan error)
 
 	for _, p := range publishers {
 		urls = append(urls, baseEndpoint+"/solicitations/"+p)
 	}
 
-	scraper.OnHTML(".card-solicitation", func(e *colly.HTMLElement) {
+	listScraper.OnRequest(func(r *colly.Request) {
+		fmt.Println("searching", r.URL)
+	})
+
+	listScraper.OnHTML(".card-solicitation", func(e *colly.HTMLElement) {
 		a, err := extractLinkAltData(e.ChildAttr("img", "alt"))
 		if err != nil {
 			errs <- err
@@ -41,23 +47,23 @@ func NewLeagueOfComicGeeksScraper(months []string, publishers []string) *Standar
 			return
 		}
 
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		if slices.Contains(months, a.month) {
+			l := e.ChildAttr("a", "href")
 
-			if slices.Contains(months, a.month) {
-				l := e.ChildAttr("a", "href")
-
-				e.Request.Ctx.Put("publisher", a.publisher)
-				if err = e.Request.Visit(strings.Join([]string{baseEndpoint, l}, "")); err != nil {
-					errs <- err
-					return
-				}
+			if err = detailScraper.Visit(strings.Join([]string{baseEndpoint, l}, "")); err != nil {
+				errs <- err
+				return
 			}
-		}()
+
+			detailScraper.Wait()
+		}
 	})
 
-	scraper.OnHTML(".issue", func(e *colly.HTMLElement) {
+	detailScraper.OnRequest(func(r *colly.Request) {
+		fmt.Printf("starting scraping for %s\n", r.URL)
+	})
+
+	detailScraper.OnHTML(".issue", func(e *colly.HTMLElement) {
 		cb := models.ComicBook{
 			Creators: make(map[string][]string),
 		}
@@ -88,11 +94,16 @@ func NewLeagueOfComicGeeksScraper(months []string, publishers []string) *Standar
 		results <- cb
 	})
 
+	detailScraper.OnScraped(func(r *colly.Response) {
+		fmt.Printf("finished scraping %s\n", r.Request.URL)
+	})
+
+	fmt.Println("Scraper initialized")
 	return &StandardScraper{
-		wg:      wg,
-		scraper: scraper,
+		scraper: listScraper,
 		urls:    urls,
 		results: results,
+		errs:    errs,
 	}
 }
 
