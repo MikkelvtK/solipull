@@ -2,8 +2,10 @@ package scraper
 
 import (
 	"fmt"
+	"github.com/MikkelvtK/pul/internal/cache"
 	"github.com/MikkelvtK/pul/internal/models"
 	"github.com/gocolly/colly/v2"
+	"log"
 	"slices"
 	"strconv"
 	"strings"
@@ -16,105 +18,122 @@ type altData struct {
 	publisher string
 }
 
+type SolicitationParser struct {
+	domain string
+	months []string
+}
+
+func NewSolicitationParser(domain string, months []string) *SolicitationParser {
+	return &SolicitationParser{
+		domain: domain,
+		months: months,
+	}
+}
+
+func (s *SolicitationParser) Selector() string {
+	return ".card-solicitation"
+}
+
+func (s *SolicitationParser) Parse(e *colly.HTMLElement) {
+	a, err := extractLinkAltData(e.ChildAttr("img", "alt"))
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	if a.year < time.Now().Year() {
+		return
+	}
+
+	if slices.Contains(s.months, a.month) {
+		l := e.ChildAttr("a", "href")
+
+		e.Request.Ctx.Put("publisher", a.publisher)
+		if err = e.Request.Visit(strings.Join([]string{s.domain, l}, "")); err != nil {
+			log.Println(err)
+			return
+		}
+	}
+}
+
+type IssueParser struct {
+	cache *cache.Cache[string, models.ComicBook]
+}
+
+func NewIssueParser(c *cache.Cache[string, models.ComicBook]) *IssueParser {
+	return &IssueParser{
+		cache: c,
+	}
+}
+
+func (i IssueParser) Selector() string {
+	return ".issue"
+}
+
+func (i IssueParser) Parse(e *colly.HTMLElement) {
+	cb := models.ComicBook{
+		Creators: make(map[string][]string),
+	}
+
+	err := extractSynopsisData(&cb, e.ChildText(".synopsis + div"))
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	err = extractSummary(&cb, e.ChildTexts(".comic-summary .copy-really-large, "+
+		".comic-summary .copy-really-small"))
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	e.ForEach(".creators .row", func(i int, ec *colly.HTMLElement) {
+		err = extractCreators(&cb, ec.ChildTexts(".copy-really-small, .copy-small"))
+		if err != nil {
+			log.Println(err)
+			return
+		}
+	})
+
+	cb.Publisher = e.Request.Ctx.Get("publisher")
+
+	fmt.Println(cb)
+
+	i.cache.Put(cb.Publisher, cb)
+}
+
 func NewLeagueOfComicGeeksScraper(months []string, publishers []string) (*StandardScraper, error) {
 	const baseEndpoint = "https://leagueofcomicgeeks.com"
 
-	listScraper := colly.NewCollector(
-		colly.AllowedDomains("leagueofcomicgeeks.com"),
-		colly.Async(true),
-		colly.MaxDepth(2),
-		colly.CacheDir("./league_of_comic_geeks_cache"),
-	)
-
-	err := listScraper.Limit(&colly.LimitRule{DomainGlob: "*leagueofcomicgeeks*", Parallelism: 2, RandomDelay: time.Second})
+	c, err := newDefaultCollector(baseEndpoint)
 	if err != nil {
 		return nil, err
 	}
 
-	detailScraper := listScraper.Clone()
-	results := make(chan models.ComicBook, 50)
-	urls := make([]string, 0)
-	errs := make(chan error)
+	r := cache.NewCache[string, models.ComicBook]()
+	u := make([]string, 0)
+
+	s := NewSolicitationParser(baseEndpoint, months)
+	i := NewIssueParser(r)
 
 	for _, p := range publishers {
-		urls = append(urls, baseEndpoint+"/solicitations/"+p)
+		u = append(u, baseEndpoint+"/solicitations/"+p)
 	}
 
-	// TODO: use fake user agents
-	listScraper.OnRequest(func(r *colly.Request) {
-		fmt.Println("searching", r.URL)
-	})
-
-	listScraper.OnHTML(".card-solicitation", func(e *colly.HTMLElement) {
-		a, err := extractLinkAltData(e.ChildAttr("img", "alt"))
-		if err != nil {
-			errs <- err
-			return
-		}
-
-		if a.year < time.Now().Year() {
-			return
-		}
-
-		if slices.Contains(months, a.month) {
-			l := e.ChildAttr("a", "href")
-
-			if err = detailScraper.Visit(strings.Join([]string{baseEndpoint, l}, "")); err != nil {
-				errs <- err
-				return
-			}
-
-			detailScraper.Wait()
-		}
-	})
-
-	detailScraper.OnRequest(func(r *colly.Request) {
+	c.OnRequest(func(r *colly.Request) {
 		fmt.Printf("starting scraping for %s\n", r.URL)
 	})
 
-	detailScraper.OnHTML(".issue", func(e *colly.HTMLElement) {
-		cb := models.ComicBook{
-			Creators: make(map[string][]string),
-		}
-
-		err := extractSynopsisData(&cb, e.ChildText(".synopsis + div"))
-		if err != nil {
-			errs <- err
-			return
-		}
-
-		err = extractSummary(&cb, e.ChildTexts(".comic-summary .copy-really-large, "+
-			".comic-summary .copy-really-small"))
-		if err != nil {
-			errs <- err
-			return
-		}
-
-		e.ForEach(".creators .row", func(i int, ec *colly.HTMLElement) {
-			err = extractCreators(&cb, ec.ChildTexts(".copy-really-small, .copy-small"))
-			if err != nil {
-				errs <- err
-				return
-			}
-		})
-
-		cb.Publisher = e.Request.Ctx.Get("publisher")
-
-		fmt.Println(cb)
-
-		results <- cb
-	})
-
-	detailScraper.OnScraped(func(r *colly.Response) {
+	c.OnScraped(func(r *colly.Response) {
 		fmt.Printf("finished scraping %s\n", r.Request.URL)
 	})
 
-	fmt.Println("Scraper initialized")
 	return &StandardScraper{
-			scraper: listScraper,
-			urls:    urls,
-			results: results,
-			errs:    errs,
+			collector:   c,
+			urls:        u,
+			strategies:  []ParsingStrategy{s, i},
+			resultCache: r,
 		},
 		nil
 }

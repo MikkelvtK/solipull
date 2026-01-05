@@ -1,38 +1,29 @@
 package scraper
 
 import (
+	"github.com/MikkelvtK/pul/internal/cache"
 	"github.com/MikkelvtK/pul/internal/models"
 	"github.com/gocolly/colly/v2"
 )
 
 type StandardScraper struct {
-	scraper *colly.Collector
-	urls    []string
-	results chan models.ComicBook
-	errs    chan error
+	collector   *colly.Collector
+	strategies  []ParsingStrategy
+	urls        []string
+	resultCache *cache.Cache[string, models.ComicBook]
 }
 
-func (s *StandardScraper) Scrape() ([]models.ComicBook, error) {
-	for _, url := range s.urls {
-		if err := s.scraper.Visit(url); err != nil {
-			s.errs <- err
+func (s *StandardScraper) Run() (*cache.Cache[string, models.ComicBook], error) {
+	for _, strat := range s.strategies {
+		s.collector.OnHTML(strat.Selector(), strat.Parse)
+	}
+
+	for _, u := range s.urls {
+		if err := s.collector.Visit(u); err != nil {
+			return nil, err
 		}
 	}
 
-	go func() {
-		s.scraper.Wait()
-		close(s.results)
-		close(s.errs)
-	}()
-
-	c := make([]models.ComicBook, 0)
-	for r := range s.results {
-		c = append(c, r)
-	}
-
-	if err := <-s.errs; err != nil {
-		return nil, err
-	}
-
-	return c, nil
+	s.collector.Wait()
+	return s.resultCache, nil
 }
