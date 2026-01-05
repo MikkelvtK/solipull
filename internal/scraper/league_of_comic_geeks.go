@@ -97,9 +97,6 @@ func (i IssueParser) Parse(e *colly.HTMLElement) {
 	})
 
 	cb.Publisher = e.Request.Ctx.Get("publisher")
-
-	fmt.Println(cb)
-
 	i.cache.Put(cb.Publisher, cb)
 }
 
@@ -127,6 +124,10 @@ func NewLeagueOfComicGeeksScraper(months []string, publishers []string) (*Standa
 
 	c.OnScraped(func(r *colly.Response) {
 		fmt.Printf("finished scraping %s\n", r.Request.URL)
+	})
+
+	c.OnError(func(r *colly.Response, err error) {
+		log.Printf("scraping failed: %s with error %s\n", r.Request.URL, err.Error())
 	})
 
 	return &StandardScraper{

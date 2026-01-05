@@ -23,7 +23,7 @@ func (c *Cache[K, V]) Get(key K) ([]V, error) {
 
 	v, ok := c.cache[key]
 	if !ok {
-		return nil, fmt.Errorf("no values for key %s", key)
+		return nil, fmt.Errorf("no values for key %v", key)
 	}
 
 	return v, nil
