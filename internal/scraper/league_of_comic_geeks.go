@@ -16,13 +16,21 @@ type altData struct {
 	publisher string
 }
 
-func NewLeagueOfComicGeeksScraper(months []string, publishers []string) *StandardScraper {
+func NewLeagueOfComicGeeksScraper(months []string, publishers []string) (*StandardScraper, error) {
 	const baseEndpoint = "https://leagueofcomicgeeks.com"
 
 	listScraper := colly.NewCollector(
 		colly.AllowedDomains("leagueofcomicgeeks.com"),
 		colly.Async(true),
+		colly.MaxDepth(2),
+		colly.CacheDir("./league_of_comic_geeks_cache"),
 	)
+
+	err := listScraper.Limit(&colly.LimitRule{DomainGlob: "*leagueofcomicgeeks*", Parallelism: 2, RandomDelay: time.Second})
+	if err != nil {
+		return nil, err
+	}
+
 	detailScraper := listScraper.Clone()
 	results := make(chan models.ComicBook, 50)
 	urls := make([]string, 0)
@@ -32,6 +40,7 @@ func NewLeagueOfComicGeeksScraper(months []string, publishers []string) *Standar
 		urls = append(urls, baseEndpoint+"/solicitations/"+p)
 	}
 
+	// TODO: use fake user agents
 	listScraper.OnRequest(func(r *colly.Request) {
 		fmt.Println("searching", r.URL)
 	})
@@ -91,6 +100,8 @@ func NewLeagueOfComicGeeksScraper(months []string, publishers []string) *Standar
 
 		cb.Publisher = e.Request.Ctx.Get("publisher")
 
+		fmt.Println(cb)
+
 		results <- cb
 	})
 
@@ -100,11 +111,12 @@ func NewLeagueOfComicGeeksScraper(months []string, publishers []string) *Standar
 
 	fmt.Println("Scraper initialized")
 	return &StandardScraper{
-		scraper: listScraper,
-		urls:    urls,
-		results: results,
-		errs:    errs,
-	}
+			scraper: listScraper,
+			urls:    urls,
+			results: results,
+			errs:    errs,
+		},
+		nil
 }
 
 func extractLinkAltData(alt string) (*altData, error) {

@@ -5,6 +5,6 @@ import (
 )
 
 func main() {
-	s := scraper.NewLeagueOfComicGeeksScraper([]string{"march"}, []string{"dc", "marvel"})
+	s, _ := scraper.NewLeagueOfComicGeeksScraper([]string{"march"}, []string{"dc", "marvel"})
 	s.Scrape()
 }
