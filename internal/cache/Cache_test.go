@@ -327,3 +327,70 @@ func TestCache_GetByTitle(t *testing.T) {
 		})
 	}
 }
+
+func TestCache_Data_Integrity(t *testing.T) {
+	args := []models.ComicBook{defaultBatmanComicBook(), defaultSupermanComicBook()}
+	c := setupCache(t, args)
+
+	tests := []struct {
+		name       string
+		wantLen    int
+		funcName   string
+		funcToExec func() ([]models.ComicBook, error)
+		want       []models.ComicBook
+	}{
+		{
+			name:     "data integrity check using GetAll",
+			wantLen:  len(args),
+			funcName: "GetAll",
+			funcToExec: func() ([]models.ComicBook, error) {
+				return c.GetAll()
+			},
+			want: args,
+		},
+		{
+			name:     "data integrity check using GetByTitle",
+			wantLen:  1,
+			funcName: "GetByTitle",
+			funcToExec: func() ([]models.ComicBook, error) {
+				return c.GetByTitle("Batman")
+			},
+			want: []models.ComicBook{defaultBatmanComicBook()},
+		},
+		{
+			name:     "data integrity check using GetByPublisher",
+			wantLen:  len(args),
+			funcName: "GetByPublisher",
+			funcToExec: func() ([]models.ComicBook, error) {
+				return c.GetByPublisher("dc")
+			},
+			want: args,
+		},
+	}
+
+	t.Parallel()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.funcToExec()
+			if err != nil {
+				t.Errorf("%v error %v", tt.funcName, err)
+			}
+
+			if len(got) != tt.wantLen {
+				t.Errorf("%v len got = %v, want %v", tt.funcName, len(got), tt.wantLen)
+			}
+
+			got[0].Title = "Flash"
+
+			got, err = tt.funcToExec()
+			if err != nil {
+				t.Errorf("%v error %v", tt.funcName, err)
+			}
+
+			slices.SortFunc(got, sort)
+			if !reflect.DeepEqual(tt.want, got) {
+				t.Errorf("%v got = %v, want %v", tt.funcName, got, args)
+			}
+		})
+	}
+}

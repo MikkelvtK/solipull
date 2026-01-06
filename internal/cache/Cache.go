@@ -7,8 +7,8 @@ import (
 	"github.com/MikkelvtK/solipull/internal/models"
 )
 
-// Cache provides a thread safe, in-memory way to store comic book data. It's used by the scraper before
-// the data cached gets exported to Google Spreadsheets.
+// Cache provides a thread safe, in-memory way to store comic book data. It serves as an intermediary storage device
+// for the scraper until it will be exported to a Google Spreadsheet
 type Cache struct {
 
 	// cache stores the comic book data using maps. It orders the data by publisher and then ID to avoid duplicates.
