@@ -2,8 +2,9 @@ package cache
 
 import (
 	"fmt"
-	"github.com/MikkelvtK/solipull/internal/models"
 	"sync"
+
+	"github.com/MikkelvtK/solipull/internal/models"
 )
 
 // Cache provides a thread safe, in-memory way to store comic book data. It's used by the scraper before
