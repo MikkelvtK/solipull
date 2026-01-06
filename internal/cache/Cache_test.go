@@ -1,8 +1,11 @@
 package cache
 
 import (
+	"cmp"
 	"github.com/MikkelvtK/solipull/internal/models"
 	"reflect"
+	"slices"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -50,6 +53,14 @@ func setupNilCache(t *testing.T) *Cache {
 	return &Cache{}
 }
 
+func sort(a, b models.ComicBook) int {
+	if n := strings.Compare(a.Title, b.Title); n != 0 {
+		return n
+	}
+
+	return cmp.Compare(a.Issue, b.Issue)
+}
+
 func TestCache_GetAll(t *testing.T) {
 	type testCase struct {
 		name    string
@@ -77,13 +88,17 @@ func TestCache_GetAll(t *testing.T) {
 		},
 	}
 
+	t.Parallel()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := tt.c.GetAll()
+			slices.SortFunc(got, sort)
+
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetAll() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
+
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("GetAll() got = %v, want %v", got, tt.want)
 			}
@@ -144,6 +159,7 @@ func TestCache_Put(t *testing.T) {
 		},
 	}
 
+	t.Parallel()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.c.Put(tt.args.cb)
@@ -192,6 +208,8 @@ func TestNewCache(t *testing.T) {
 			},
 		},
 	}
+
+	t.Parallel()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := NewCache()
@@ -235,6 +253,8 @@ func TestCache_GetByPublisher(t *testing.T) {
 			len:     1,
 		},
 	}
+
+	t.Parallel()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := tt.cache.GetByPublisher(tt.args.publisher)
@@ -281,23 +301,16 @@ func TestCache_GetByTitle(t *testing.T) {
 			len:     1,
 		},
 		{
-			name: "correct value found",
-			cache: func() *Cache {
-				c := NewCache()
-				if err := c.Put(defaultBatmanComicBook()); err != nil {
-					t.Errorf("Error putting comic book in cache: %v", err)
-				}
-				if err := c.Put(defaultSupermanComicBook()); err != nil {
-					t.Errorf("Error putting comic book in cache: %v", err)
-				}
-				return c
-			}(),
+			name:    "correct value found",
+			cache:   setupCache(t, []models.ComicBook{defaultBatmanComicBook(), defaultSupermanComicBook()}),
 			args:    args{title: "Superman"},
 			want:    []models.ComicBook{defaultSupermanComicBook()},
 			wantErr: false,
 			len:     1,
 		},
 	}
+
+	t.Parallel()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := tt.cache.GetByTitle(tt.args.title)
