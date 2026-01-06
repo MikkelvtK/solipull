@@ -1,14 +1,22 @@
 package models
 
-import "time"
+import (
+    "strings"
+    "time"
+)
 
 type ComicBook struct {
-	Title       string
-	Issue       int
-	Pages       int
-	Type        string
-	Price       string
-	Creators    map[string][]string
-	Publisher   string
-	ReleaseDate time.Time
+    Title       string
+    Issue       string
+    Pages       string
+    Format      string
+    Price       string
+    Creators    map[string][]string
+    Publisher   string
+    ReleaseDate time.Time
+    Code        string
+}
+
+func (c ComicBook) ID() string {
+    return strings.Join([]string{c.Title, c.Issue, c.Format, c.ReleaseDate.Format("2006-01-02")}, "|")
 }

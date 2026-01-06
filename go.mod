@@ -1,4 +1,4 @@
-module github.com/MikkelvtK/pul
+module github.com/MikkelvtK/solipull
 
 go 1.25.5
 

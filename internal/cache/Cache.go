@@ -1,56 +1,97 @@
 package cache
 
 import (
-	"fmt"
-	"sync"
+    "fmt"
+    "github.com/MikkelvtK/solipull/internal/models"
+    "sync"
 )
 
-type Cache[K comparable, V any] struct {
-	cache map[K][]V
-	mu    sync.Mutex
+type Cache struct {
+    cache  map[string]map[string]models.ComicBook
+    mu     sync.Mutex
+    length int
 }
 
-func NewCache[K comparable, V any]() *Cache[K, V] {
-	return &Cache[K, V]{
-		cache: make(map[K][]V),
-		mu:    sync.Mutex{},
-	}
+func NewCache() *Cache {
+    return &Cache{
+        cache:  make(map[string]map[string]models.ComicBook),
+        mu:     sync.Mutex{},
+        length: 0,
+    }
 }
 
-func (c *Cache[K, V]) Get(key K) ([]V, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (c *Cache) GetByTitle(title string) ([]models.ComicBook, error) {
+    c.mu.Lock()
+    defer c.mu.Unlock()
 
-	v, ok := c.cache[key]
-	if !ok {
-		return nil, fmt.Errorf("no values for key %v", key)
-	}
+    s := make([]models.ComicBook, 0)
+    for _, cbs := range c.cache {
+        for _, cb := range cbs {
+            if cb.Title == title {
+                s = append(s, cb)
+            }
+        }
+    }
 
-	return v, nil
+    if len(s) == 0 {
+        return nil, fmt.Errorf("no values for %v were found", title)
+    }
+
+    return s, nil
 }
 
-func (c *Cache[K, V]) GetAll() (map[K][]V, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (c *Cache) GetByPublisher(publisher string) ([]models.ComicBook, error) {
+    c.mu.Lock()
+    defer c.mu.Unlock()
 
-	if c.cache == nil {
-		return nil, fmt.Errorf("cache is empty")
-	}
+    v, ok := c.cache[publisher]
+    if !ok {
+        return nil, fmt.Errorf("no values for publisher %v", publisher)
+    }
 
-	return c.cache, nil
+    s := make([]models.ComicBook, 0, len(v))
+    for _, cb := range v {
+        s = append(s, cb)
+    }
+
+    return s, nil
 }
 
-func (c *Cache[K, V]) Put(key K, val V) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (c *Cache) GetAll() ([]models.ComicBook, error) {
+    c.mu.Lock()
+    defer c.mu.Unlock()
 
-	if c.cache == nil {
-		c.cache = make(map[K][]V)
-	}
+    if c.cache == nil || len(c.cache) == 0 {
+        return nil, fmt.Errorf("cache is empty")
+    }
 
-	if _, ok := c.cache[key]; !ok {
-		c.cache[key] = make([]V, 0)
-	}
+    s := make([]models.ComicBook, 0, c.length)
+    for _, cbs := range c.cache {
+        for _, cb := range cbs {
+            s = append(s, cb)
+        }
+    }
 
-	c.cache[key] = append(c.cache[key], val)
+    return s, nil
+}
+
+func (c *Cache) Put(comic models.ComicBook) error {
+    c.mu.Lock()
+    defer c.mu.Unlock()
+
+    if c.cache == nil {
+        c.cache = make(map[string]map[string]models.ComicBook)
+    }
+
+    if _, ok := c.cache[comic.Publisher]; !ok {
+        c.cache[comic.Publisher] = make(map[string]models.ComicBook)
+    }
+
+    if _, ok := c.cache[comic.Publisher][comic.ID()]; ok {
+        return fmt.Errorf("value for id %v of publisher %v already exists", comic.ID(), comic.Publisher)
+    }
+
+    c.cache[comic.Publisher][comic.ID()] = comic
+    c.length++
+    return nil
 }
