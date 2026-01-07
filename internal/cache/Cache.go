@@ -35,6 +35,10 @@ func (c *Cache) GetByTitle(title string) ([]models.ComicBook, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	if c.cache == nil || c.length == 0 {
+		return nil, fmt.Errorf("cache is empty")
+	}
+
 	s := make([]models.ComicBook, 0)
 	for _, cbs := range c.cache {
 		for _, cb := range cbs {
@@ -56,9 +60,13 @@ func (c *Cache) GetByPublisher(publisher string) ([]models.ComicBook, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	if c.cache == nil || c.length == 0 {
+		return nil, fmt.Errorf("cache is empty")
+	}
+
 	v, ok := c.cache[publisher]
 	if !ok {
-		return nil, fmt.Errorf("no values for publisher %v", publisher)
+		return nil, fmt.Errorf("no values for publisher %v were found", publisher)
 	}
 
 	s := make([]models.ComicBook, 0, len(v))
@@ -74,7 +82,7 @@ func (c *Cache) GetAll() ([]models.ComicBook, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if c.cache == nil || len(c.cache) == 0 {
+	if c.cache == nil || c.length == 0 {
 		return nil, fmt.Errorf("cache is empty")
 	}
 

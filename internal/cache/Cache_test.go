@@ -88,9 +88,10 @@ func TestCache_GetAll(t *testing.T) {
 		},
 	}
 
-	t.Parallel()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got, err := tt.c.GetAll()
 			slices.SortFunc(got, sort)
 
@@ -159,9 +160,10 @@ func TestCache_Put(t *testing.T) {
 		},
 	}
 
-	t.Parallel()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := tt.c.Put(tt.args.cb)
 			if (err != nil) == tt.wantErr {
 				return
@@ -209,9 +211,10 @@ func TestNewCache(t *testing.T) {
 		},
 	}
 
-	t.Parallel()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := NewCache()
 			if tt.funcToExec != nil {
 				tt.funcToExec(t, got)
@@ -237,9 +240,17 @@ func TestCache_GetByPublisher(t *testing.T) {
 		len     int
 	}{
 		{
-			name:    "publisher not found",
-			cache:   NewCache(),
+			name:    "nil case",
+			cache:   setupNilCache(t),
 			args:    args{publisher: "dc"},
+			want:    nil,
+			wantErr: true,
+			len:     0,
+		},
+		{
+			name:    "publisher not found",
+			cache:   setupCache(t, []models.ComicBook{defaultBatmanComicBook()}),
+			args:    args{publisher: "marvel"},
 			want:    nil,
 			wantErr: true,
 			len:     0,
@@ -254,9 +265,10 @@ func TestCache_GetByPublisher(t *testing.T) {
 		},
 	}
 
-	t.Parallel()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got, err := tt.cache.GetByPublisher(tt.args.publisher)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetByPublisher() error = %v, wantErr %v", err, tt.wantErr)
@@ -285,8 +297,16 @@ func TestCache_GetByTitle(t *testing.T) {
 		len     int
 	}{
 		{
+			name:    "nil case",
+			cache:   setupNilCache(t),
+			args:    args{title: "marvel"},
+			want:    nil,
+			wantErr: true,
+			len:     0,
+		},
+		{
 			name:    "title not found",
-			cache:   NewCache(),
+			cache:   setupCache(t, []models.ComicBook{defaultSupermanComicBook()}),
 			args:    args{title: "Batman"},
 			want:    nil,
 			wantErr: true,
@@ -310,9 +330,10 @@ func TestCache_GetByTitle(t *testing.T) {
 		},
 	}
 
-	t.Parallel()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got, err := tt.cache.GetByTitle(tt.args.title)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetByTitle() error = %v, wantErr %v", err, tt.wantErr)
@@ -368,9 +389,10 @@ func TestCache_Data_Integrity(t *testing.T) {
 		},
 	}
 
-	t.Parallel()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got, err := tt.funcToExec()
 			if err != nil {
 				t.Errorf("%v error %v", tt.funcName, err)
