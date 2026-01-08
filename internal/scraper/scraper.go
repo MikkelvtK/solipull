@@ -37,6 +37,7 @@ func newDefaultCollector(domain string) (*colly.Collector, error) {
 	c := colly.NewCollector(
 		colly.Async(true),
 		colly.MaxDepth(1),
+		colly.AllowedDomains(domain),
 	)
 
 	c.IgnoreRobotsTxt = false

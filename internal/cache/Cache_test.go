@@ -18,7 +18,6 @@ func defaultBatmanComicBook() models.ComicBook {
 		Format:    "comic",
 		Price:     "4.99",
 		Publisher: "dc",
-		Code:      "0123456789",
 	}
 }
 
@@ -30,7 +29,6 @@ func defaultSupermanComicBook() models.ComicBook {
 		Format:    "comic",
 		Price:     "4.99",
 		Publisher: "dc",
-		Code:      "0123456789",
 	}
 }
 
@@ -139,7 +137,6 @@ func TestCache_Put(t *testing.T) {
 				Format:    "comic",
 				Price:     "4.99",
 				Publisher: "dc",
-				Code:      "0123456789",
 			}},
 			want: []models.ComicBook{defaultBatmanComicBook(), {
 				Title:     "Batman",
@@ -148,7 +145,6 @@ func TestCache_Put(t *testing.T) {
 				Format:    "comic",
 				Price:     "4.99",
 				Publisher: "dc",
-				Code:      "0123456789",
 			}},
 			wantErr: false,
 		},
