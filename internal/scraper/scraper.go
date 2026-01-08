@@ -34,8 +34,6 @@ func (s *Scraper) Run() error {
 }
 
 func newDefaultCollector(domain string) (*colly.Collector, error) {
-	// TODO: Add random user agent capabilities
-
 	c := colly.NewCollector(
 		colly.Async(true),
 		colly.MaxDepth(1),
