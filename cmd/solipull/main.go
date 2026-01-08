@@ -1,12 +1,15 @@
 package main
 
 import (
+	"github.com/MikkelvtK/solipull/internal/cache"
 	"github.com/MikkelvtK/solipull/internal/scraper"
 	"log"
 )
 
 func main() {
-	s, err := scraper.NewComicReleasesScraper([]string{"february", "march"}, []string{"dc", "marvel", "image"})
+	c := cache.NewCache()
+
+	s, err := scraper.NewComicReleasesScraper(c, []string{"march"}, []string{"dc"})
 	if err != nil {
 		log.Fatal(err)
 	}
