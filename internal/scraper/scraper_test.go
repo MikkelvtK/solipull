@@ -2,6 +2,7 @@ package scraper
 
 import (
 	"github.com/gocolly/colly/v2"
+	"github.com/gocolly/colly/v2/queue"
 	"testing"
 )
 
@@ -18,34 +19,59 @@ func setupCollector(domain string, t *testing.T) *colly.Collector {
 	return c
 }
 
-//func TestScraper_Run(t *testing.T) {
-//    type fields struct {
-//        listCollector   *colly.Collector
-//        detailCollector *colly.Collector
-//        queue           *queue.Queue
-//        url             string
-//    }
-//    tests := []struct {
-//        name    string
-//        fields  fields
-//        wantErr bool
-//    }{
-//        // TODO: Add test cases.
-//    }
-//    for _, tt := range tests {
-//        t.Run(tt.name, func(t *testing.T) {
-//            s := &Scraper{
-//                listCollector:   tt.fields.listCollector,
-//                detailCollector: tt.fields.detailCollector,
-//                queue:           tt.fields.queue,
-//                url:             tt.fields.url,
-//            }
-//            if err := s.Run(); (err != nil) != tt.wantErr {
-//                t.Errorf("Run() error = %v, wantErr %v", err, tt.wantErr)
-//            }
-//        })
-//    }
-//}
+func TestScraper_Run(t *testing.T) {
+	type fields struct {
+		listCollector   *colly.Collector
+		detailCollector *colly.Collector
+		queue           *queue.Queue
+		url             string
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		wantErr bool
+	}{
+		{
+			name: "no errors",
+			fields: fields{
+				listCollector:   colly.NewCollector(),
+				detailCollector: colly.NewCollector(),
+				queue: func() *queue.Queue {
+					q, _ := queue.New(5, &queue.InMemoryQueueStorage{MaxSize: 10_000})
+					return q
+				}(),
+				url: "https://comicreleases.com",
+			},
+			wantErr: false,
+		},
+		{
+			name: "errors",
+			fields: fields{
+				listCollector:   colly.NewCollector(),
+				detailCollector: colly.NewCollector(),
+				queue: func() *queue.Queue {
+					q, _ := queue.New(5, &queue.InMemoryQueueStorage{MaxSize: 10_000})
+					return q
+				}(),
+				url: "comicreleases.com",
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &Scraper{
+				listCollector:   tt.fields.listCollector,
+				detailCollector: tt.fields.detailCollector,
+				queue:           tt.fields.queue,
+				url:             tt.fields.url,
+			}
+			if err := s.Run(); (err != nil) != tt.wantErr {
+				t.Errorf("Run() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
 
 func Test_newDefaultCollector(t *testing.T) {
 	type args struct {

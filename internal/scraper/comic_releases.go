@@ -30,7 +30,7 @@ func newCrComicRegex(months []string, publishers []string) *crComicRegex {
 	return &crComicRegex{
 		url:         regexp.MustCompile(generateUrlRegex(months, publishers)),
 		publisher:   regexp.MustCompile("(?i)/(\\w+)-[a-zA-Z]+-\\d{4}-solicitations"),
-		pages:       regexp.MustCompile("(?i)(\\d+)\\s*(?:pages?|pgs?\\.?)"),
+		pages:       regexp.MustCompile("(?i)(\\d+)\\s*(?:pages?|pgs?.?)"),
 		price:       regexp.MustCompile("\\$(\\d+\\.\\d{2})"),
 		releaseDate: regexp.MustCompile("(?i)(\\d{1,2}/\\d{1,2}/\\d{2,4})"),
 	}
@@ -174,11 +174,12 @@ func (e *extractor) extract(s string, extractFunc func(string, *crComicRegex) (s
 
 func crTitle(s string, _ *crComicRegex) (string, error) {
 	split := strings.Split(s, "#")
-	if len(split) == 0 {
+	if len(split[0]) == 0 {
 		return "", errors.New("no title found")
 	}
 
-	return cases.Title(language.English).String(split[0]), nil
+	title := cases.Title(language.English).String(split[0])
+	return strings.TrimSpace(title), nil
 }
 
 func crIssue(s string, _ *crComicRegex) (string, error) {
@@ -191,20 +192,25 @@ func crIssue(s string, _ *crComicRegex) (string, error) {
 }
 
 func crPages(s string, regex *crComicRegex) (string, error) {
+	if regex == nil {
+		return "", errors.New("regex is nil")
+	}
 	return regex.pages.FindString(s), nil
 }
 
 func crPrice(s string, regex *crComicRegex) (string, error) {
+	if regex == nil {
+		return "", errors.New("regex is nil")
+	}
 	return regex.price.FindString(s), nil
 }
 
 func crReleaseDate(s string, regex *crComicRegex) (string, error) {
-	d := regex.releaseDate.FindString(s)
-	if len(d) == 0 {
-		return "", errors.New("no release date found")
+	if regex == nil {
+		return "", errors.New("regex is nil")
 	}
 
-	return d, nil
+	return regex.releaseDate.FindString(s), nil
 }
 
 func crParseTime(s string, e *extractor) time.Time {
@@ -223,6 +229,11 @@ func crParseTime(s string, e *extractor) time.Time {
 }
 
 func (e *extractor) extractCreators(s *goquery.Selection) map[string][]string {
+	if s == nil {
+		log.Println("extractor.extract: goquery.Selection is nil")
+		return nil
+	}
+
 	results := make(map[string][]string)
 
 	s.Contents().Each(func(j int, t *goquery.Selection) {
@@ -243,7 +254,8 @@ func (e *extractor) extractCreators(s *goquery.Selection) map[string][]string {
 			names = slices.Collect(func(yield func(string) bool) {
 				for _, name := range names {
 					namesNoAnd := strings.ReplaceAll(name, "and", "")
-					namesNoSpace := strings.TrimSpace(namesNoAnd)
+					NamesNoAmpersand := strings.ReplaceAll(namesNoAnd, "&", "")
+					namesNoSpace := strings.TrimSpace(NamesNoAmpersand)
 					yield(cases.Title(language.English).String(namesNoSpace))
 				}
 			})
