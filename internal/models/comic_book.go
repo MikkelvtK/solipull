@@ -1,21 +1,23 @@
 package models
 
 import (
-	"strings"
+	"context"
 	"time"
 )
 
+type ComicBookRepository interface {
+	BulkSave(ctx context.Context, records []ComicBook) error
+	GetById(ctx context.Context, id int) (*ComicBook, error)
+}
+
 type ComicBook struct {
+	Id          int
 	Title       string
 	Issue       string
 	Pages       string
 	Format      string
 	Price       string
-	Creators    map[string][]string
+	Creators    []Creator
 	Publisher   string
 	ReleaseDate time.Time
-}
-
-func (c ComicBook) ID() string {
-	return strings.Join([]string{c.Title, c.Issue, c.Format, c.ReleaseDate.Format("2006-01-02")}, "|")
 }

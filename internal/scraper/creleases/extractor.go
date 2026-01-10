@@ -1,0 +1,142 @@
+package creleases
+
+import (
+	"github.com/MikkelvtK/solipull/internal/models"
+	"github.com/MikkelvtK/solipull/internal/scraper"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+	"log"
+	"regexp"
+	"strings"
+	"time"
+)
+
+type comicReleasesExtractor struct {
+	rePublisher   *regexp.Regexp
+	rePages       *regexp.Regexp
+	rePrice       *regexp.Regexp
+	reReleaseDate *regexp.Regexp
+	creatorParser *creatorParser
+}
+
+func NewComicReleasesExtractor() scraper.ComicBookExtractor {
+	return &comicReleasesExtractor{
+		rePublisher:   regexp.MustCompile("(?i)/(\\w+)-[a-zA-Z]+-\\d{4}-solicitations"),
+		rePages:       regexp.MustCompile("(?i)(\\d+)\\s*(?:pages?|pgs?.?)"),
+		rePrice:       regexp.MustCompile("\\$(\\d+\\.\\d{2})"),
+		reReleaseDate: regexp.MustCompile("(?i)(\\d{1,2}/\\d{1,2}/\\d{2,4})"),
+		creatorParser: newCreatorParser([]string{"writer", "artist", "cover artist"}),
+	}
+}
+
+func (c *comicReleasesExtractor) Title(s string) string {
+	split := strings.Split(s, "#")
+	if len(split[0]) == 0 {
+		log.Println("no title found")
+		return ""
+	}
+
+	title := cases.Title(language.English).String(split[0])
+	return strings.TrimSpace(title)
+}
+
+func (c *comicReleasesExtractor) Issue(s string) string {
+	split := strings.Split(s, "#")
+	if len(split) < 2 {
+		return ""
+	}
+
+	return cases.Title(language.English).String(split[1])
+}
+
+func (c *comicReleasesExtractor) Pages(s string) string {
+	if c.rePages == nil {
+		log.Println("pages regex is nil")
+		return ""
+	}
+	return c.rePages.FindString(s)
+}
+
+func (c *comicReleasesExtractor) Price(s string) string {
+	if c.rePrice == nil {
+		log.Println("price regex is nil")
+		return ""
+	}
+	return c.rePrice.FindString(s)
+}
+
+func (c *comicReleasesExtractor) Publisher(s string) string {
+	if c.rePublisher == nil {
+		log.Println("publisher regex is nil")
+		return ""
+	}
+	return c.rePublisher.FindString(s)
+}
+
+func (c *comicReleasesExtractor) Creators(n scraper.HTMLNode) []models.Creator {
+	return c.creatorParser.parse(n)
+}
+
+func (c *comicReleasesExtractor) ReleaseDate(s string) time.Time {
+	if c.reReleaseDate == nil {
+		log.Println("release date regex is nil")
+		return time.Time{}
+	}
+
+	d := c.reReleaseDate.FindString(s)
+	if d == "" {
+		return time.Time{}
+	}
+
+	t, err := time.Parse("1/2/06", d)
+	if err != nil {
+		log.Println(err)
+		return time.Time{}
+	}
+
+	return t
+}
+
+type creatorParser struct {
+	roles []string
+}
+
+func newCreatorParser(roles []string) *creatorParser {
+	return &creatorParser{roles}
+}
+
+func (c *creatorParser) parse(n scraper.HTMLNode) []models.Creator {
+	if n == nil {
+		log.Println("HTMLNode is nil")
+		return nil
+	}
+
+	results := make([]models.Creator, 0)
+
+	n.Each(func(s scraper.HTMLNode) {
+		if s.NodeName() == "br" {
+			return
+		}
+
+		for _, role := range c.roles {
+			v := strings.ToLower(strings.TrimSpace(s.Text()))
+
+			if !strings.HasPrefix(v, role) {
+				continue
+			}
+
+			split := strings.Split(v, ":")
+			names := strings.Split(split[1], ",")
+			for _, name := range names {
+				namesNoAnd := strings.ReplaceAll(name, "and", "")
+				NamesNoAmpersand := strings.ReplaceAll(namesNoAnd, "&", "")
+				namesNoSpace := strings.TrimSpace(NamesNoAmpersand)
+				nameFinal := cases.Title(language.English).String(namesNoSpace)
+				results = append(results, models.Creator{Name: nameFinal, Role: role})
+
+			}
+		}
+	})
+
+	return results
+}

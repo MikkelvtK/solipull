@@ -1,48 +1,46 @@
 package scraper
 
 import (
+	"fmt"
 	"github.com/gocolly/colly/v2"
-	"github.com/gocolly/colly/v2/queue"
+	"regexp"
+	"strings"
 	"time"
 )
+
+type Scraper interface {
+	Run() error
+}
 
 type ParsingStrategy[T any] interface {
 	Selector() string
 	Parse(e T)
+	Bind(c *colly.Collector)
 }
 
-type Scraper struct {
-	listCollector   *colly.Collector
-	detailCollector *colly.Collector
-	queue           *queue.Queue
-	url             string
-}
-
-func (s *Scraper) Run() error {
-	if err := s.listCollector.Visit(s.url); err != nil {
-		return err
-	}
-
-	s.listCollector.Wait()
-
-	if err := s.queue.Run(s.detailCollector); err != nil {
-		return err
-	}
-
-	s.detailCollector.Wait()
-	return nil
-}
-
-func newDefaultCollector(domain string) (*colly.Collector, error) {
+func NewDefaultCollector(domain string, limit *colly.LimitRule) (*colly.Collector, error) {
 	c := colly.NewCollector(
 		colly.Async(true),
 		colly.MaxDepth(1),
-		colly.AllowedDomains(domain),
 	)
+
+	domainSplit := strings.Split(domain, ".")
+	if len(domainSplit) != 2 {
+		return nil, fmt.Errorf("invalid domain: %s", domain)
+	}
+
+	regStr := fmt.Sprintf("^(https?://)?([\\w\\d-]+\\.)?%s\\.%s(/.*)?$", domainSplit[0], domainSplit[1])
+	c.URLFilters = []*regexp.Regexp{
+		regexp.MustCompile(regStr),
+	}
 
 	c.IgnoreRobotsTxt = false
 
-	err := c.Limit(&colly.LimitRule{DomainGlob: domain, Parallelism: 1, RandomDelay: 5 * time.Second})
+	limitToUse := limit
+	if limitToUse == nil {
+		limitToUse = &colly.LimitRule{DomainGlob: "*" + domain + "*", Parallelism: 1, RandomDelay: 5 * time.Second}
+	}
+	err := c.Limit(limitToUse)
 	if err != nil {
 		return nil, err
 	}

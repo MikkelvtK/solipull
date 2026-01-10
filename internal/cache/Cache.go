@@ -2,6 +2,7 @@ package cache
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/MikkelvtK/solipull/internal/models"
@@ -109,11 +110,15 @@ func (c *Cache) Put(comic models.ComicBook) error {
 		c.cache[comic.Publisher] = make(map[string]models.ComicBook)
 	}
 
-	if _, ok := c.cache[comic.Publisher][comic.ID()]; ok {
-		return fmt.Errorf("value for id %v of publisher %v already exists", comic.ID(), comic.Publisher)
+	if _, ok := c.cache[comic.Publisher][c.comicBookID(&comic)]; ok {
+		return fmt.Errorf("value for id %v of publisher %v already exists", c.comicBookID(&comic), comic.Publisher)
 	}
 
-	c.cache[comic.Publisher][comic.ID()] = comic
+	c.cache[comic.Publisher][c.comicBookID(&comic)] = comic
 	c.length++
 	return nil
+}
+
+func (c *Cache) comicBookID(cb *models.ComicBook) string {
+	return strings.Join([]string{cb.Title, cb.Issue, cb.Format, cb.ReleaseDate.Format("2006-01-02")}, "|")
 }
