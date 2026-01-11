@@ -38,7 +38,7 @@ func NewApplication(months, publishers []string) *Application {
 	detailParser := creleases.NewDetailParser(c, e)
 	detailParser.Bind(detailCollector)
 
-	s, _ := creleases.NewComicReleasesScraper(listCollector, detailCollector, q)
+	s := creleases.NewComicReleasesScraper(listCollector, detailCollector, q)
 
 	return &Application{
 		Scraper: s,
