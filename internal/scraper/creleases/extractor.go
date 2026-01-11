@@ -21,10 +21,10 @@ type comicReleasesExtractor struct {
 
 func NewComicReleasesExtractor() scraper.ComicBookExtractor {
 	return &comicReleasesExtractor{
-		rePublisher:   regexp.MustCompile("(?i)/(\\w+)-[a-zA-Z]+-\\d{4}-solicitations"),
-		rePages:       regexp.MustCompile("(?i)(\\d+)\\s*(?:pages?|pgs?.?)"),
-		rePrice:       regexp.MustCompile("\\$(\\d+\\.\\d{2})"),
-		reReleaseDate: regexp.MustCompile("(?i)(\\d{1,2}/\\d{1,2}/\\d{2,4})"),
+		rePublisher:   regexp.MustCompile(`(?i)/(?P<Pub>\w+)-[a-zA-Z]+-\d{4}-solicitations`),
+		rePages:       regexp.MustCompile(`(?P<Pages>\d+)\s*(?i)(?:pages?|pgs?.?)`),
+		rePrice:       regexp.MustCompile(`\$(\d+\.\d{2})`),
+		reReleaseDate: regexp.MustCompile(`(?i)(\d{1,2}/\d{1,2}/\d{2,4})`),
 		creatorParser: newCreatorParser([]string{"writer", "artist", "cover artist"}),
 	}
 }
@@ -54,7 +54,18 @@ func (c *comicReleasesExtractor) Pages(s string) string {
 		log.Println("pages regex is nil")
 		return ""
 	}
-	return c.rePages.FindString(s)
+
+	matches := c.rePages.FindStringSubmatch(s)
+	if matches == nil {
+		return ""
+	}
+
+	i := c.rePages.SubexpIndex("Pages")
+	if i < 0 {
+		return ""
+	}
+
+	return matches[i]
 }
 
 func (c *comicReleasesExtractor) Price(s string) string {
@@ -70,7 +81,17 @@ func (c *comicReleasesExtractor) Publisher(s string) string {
 		log.Println("publisher regex is nil")
 		return ""
 	}
-	return c.rePublisher.FindString(s)
+
+	matches := c.rePublisher.FindStringSubmatch(s)
+	if matches == nil {
+		return ""
+	}
+
+	i := c.rePublisher.SubexpIndex("Pub")
+	if i < 0 {
+		return ""
+	}
+	return strings.ToLower(matches[i])
 }
 
 func (c *comicReleasesExtractor) Creators(n scraper.HTMLNode) []models.Creator {
@@ -106,12 +127,12 @@ func newCreatorParser(roles []string) *creatorParser {
 }
 
 func (c *creatorParser) parse(n scraper.HTMLNode) []models.Creator {
+	results := make([]models.Creator, 0)
+
 	if n == nil {
 		log.Println("HTMLNode is nil")
-		return nil
+		return results
 	}
-
-	results := make([]models.Creator, 0)
 
 	n.Each(func(s scraper.HTMLNode) {
 		if s.NodeName() == "br" {
