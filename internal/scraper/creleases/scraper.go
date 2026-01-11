@@ -1,6 +1,7 @@
 package creleases
 
 import (
+	"errors"
 	"github.com/MikkelvtK/solipull/internal/scraper"
 	"github.com/gocolly/colly/v2"
 	"github.com/gocolly/colly/v2/queue"
@@ -18,6 +19,10 @@ type comicReleasesScraper struct {
 }
 
 func (s *comicReleasesScraper) Run() error {
+	if s.listCollector == nil || s.detailCollector == nil || s.queue == nil {
+		return errors.New("invalid nil fields on scraper")
+	}
+
 	if err := s.listCollector.Visit(s.url); err != nil {
 		return err
 	}
@@ -31,8 +36,6 @@ func (s *comicReleasesScraper) Run() error {
 	s.detailCollector.Wait()
 	return nil
 }
-
-type OptionsFunc func(*comicReleasesScraper)
 
 func NewComicReleasesScraper(list, detail *colly.Collector, q *queue.Queue) scraper.Scraper {
 	return &comicReleasesScraper{
