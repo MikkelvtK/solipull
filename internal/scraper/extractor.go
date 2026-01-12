@@ -145,14 +145,16 @@ func (c *comicReleasesExtractor) ReleaseDate(s string) time.Time {
 		return time.Time{}
 	}
 
-	t, err := time.Parse("1/2/06", d)
-	if err != nil {
-		c.logger.Warn("failed to parse release date", "string", s, "error", err.Error())
-		c.stats.ErrorCount.Add(1)
-		return time.Time{}
+	for _, layout := range []string{"1/2/06", "1/2/2006"} {
+		t, err := time.Parse(layout, d)
+		if err == nil {
+			return t
+		}
 	}
 
-	return t
+	c.logger.Warn("failed to parse release date", "string", s)
+	c.stats.ErrorCount.Add(1)
+	return time.Time{}
 }
 
 type HTMLNode interface {

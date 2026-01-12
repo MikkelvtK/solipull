@@ -21,6 +21,10 @@ CREATE TABLE IF NOT EXISTS creators (
 );
 
 CREATE INDEX idx_comics_publisher ON comic_books(publisher);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_comics_unique
+    ON comic_books(title, issue, publisher);
+
 -- +goose StatementEnd
 
 -- +goose Down

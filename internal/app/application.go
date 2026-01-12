@@ -20,13 +20,8 @@ func NewApplication(months, publishers []string) *Application {
 		log.Fatal(err)
 	}
 
-	col, err := scraper.NewCollector(service.Domain, 5)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	navCollector := col.Clone()
-	solCollector := col.Clone()
+	navCollector, _ := scraper.NewCollector(service.Domain, 5, "")
+	solCollector, _ := scraper.NewCollector(service.Domain, 5, "comicreleases")
 
 	cfg := scraper.SConfig{
 		Nav:    navCollector,

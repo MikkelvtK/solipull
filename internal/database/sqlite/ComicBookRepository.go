@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"time"
 
 	"github.com/MikkelvtK/solipull/internal/models"
@@ -23,10 +24,11 @@ func (c *ComicBookRepository) BulkSave(ctx context.Context, records []models.Com
 	}
 
 	stmt, err := tx.PrepareContext(ctx, `
-        INSERT INTO comic_books(title, issue, pages, format, price, publisher, release_date, created_at) 
+        INSERT OR IGNORE INTO comic_books(title, issue, pages, format, price, publisher, release_date, created_at) 
         VALUES (?, ?, ?, ?, ?, ?, ?, ?);
     `)
 	if err != nil {
+		fmt.Println("Error in bulk save comic_books: ", err.Error())
 		return err
 	}
 	defer stmt.Close()

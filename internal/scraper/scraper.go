@@ -13,11 +13,15 @@ import (
 	"time"
 )
 
-func NewCollector(domain string, parallelism int) (*colly.Collector, error) {
+func NewCollector(domain string, parallelism int, cache string) (*colly.Collector, error) {
 	c := colly.NewCollector(
 		colly.Async(true),
 		colly.MaxDepth(1),
 	)
+
+	if cache != "" {
+		c.CacheDir = cache + "_cache"
+	}
 
 	domainSplit := strings.Split(domain, ".")
 	if len(domainSplit) != 2 {
@@ -115,6 +119,8 @@ func (s *comicReleasesScraper) bindCallbacks() {
 	})
 
 	s.solCol.OnHTML("div.wp-block-columns", func(e *colly.HTMLElement) {
+		//var format string
+
 		cb := s.parseComicBook(e)
 		if s.res != nil {
 			s.res <- cb
@@ -125,6 +131,7 @@ func (s *comicReleasesScraper) bindCallbacks() {
 func (s *comicReleasesScraper) parseComicBook(e *colly.HTMLElement) models.ComicBook {
 	cb := models.ComicBook{}
 	cb.Publisher = s.ex.Publisher(e.Request.URL.String())
+	cb.Format, _ = e.DOM.PrevAll().Filter("#singles, #trades, #hardcovers").First().Attr("id")
 
 	e.DOM.Children().Find("p").Each(func(i int, sel *goquery.Selection) {
 		switch i {
