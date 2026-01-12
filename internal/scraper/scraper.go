@@ -4,16 +4,16 @@ import (
 	"context"
 	"fmt"
 	"github.com/MikkelvtK/solipull/internal/models"
-	"github.com/MikkelvtK/solipull/internal/service"
 	"github.com/PuerkitoBio/goquery"
 	"github.com/gocolly/colly/v2"
 	"github.com/gocolly/colly/v2/queue"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
-func NewDefaultCollector(domain string, limit *colly.LimitRule) (*colly.Collector, error) {
+func NewCollector(domain string, parallelism int) (*colly.Collector, error) {
 	c := colly.NewCollector(
 		colly.Async(true),
 		colly.MaxDepth(1),
@@ -31,12 +31,8 @@ func NewDefaultCollector(domain string, limit *colly.LimitRule) (*colly.Collecto
 
 	c.IgnoreRobotsTxt = false
 
-	limitToUse := limit
-	if limitToUse == nil {
-		limitToUse = &colly.LimitRule{DomainGlob: "*" + domain + "*", Parallelism: 1, RandomDelay: 5 * time.Second}
-	}
-	err := c.Limit(limitToUse)
-	if err != nil {
+	l := &colly.LimitRule{DomainGlob: "*" + domain + "*", Parallelism: parallelism, RandomDelay: 5 * time.Second}
+	if err := c.Limit(l); err != nil {
 		return nil, err
 	}
 
@@ -49,8 +45,9 @@ type comicReleasesScraper struct {
 	queue  *queue.Queue
 	ex     ComicBookExtractor
 
-	ctx context.Context
-	res chan<- models.ComicBook
+	ctx    context.Context
+	res    chan<- models.ComicBook
+	errNum atomic.Int32
 }
 
 func (s *comicReleasesScraper) GetData(ctx context.Context, url string, results chan<- models.ComicBook) error {
@@ -68,6 +65,10 @@ func (s *comicReleasesScraper) GetData(ctx context.Context, url string, results 
 	s.navCol.Wait()
 
 	return s.queue.Run(s.solCol)
+}
+
+func (s *comicReleasesScraper) ErrNum() int {
+	return int(s.errNum.Load())
 }
 
 func (s *comicReleasesScraper) bindCallbacks() {
@@ -121,7 +122,7 @@ func (s *comicReleasesScraper) parseComicBook(e *colly.HTMLElement) models.Comic
 	return cb
 }
 
-func NewComicReleasesScraper(nav, sol *colly.Collector, q *queue.Queue, ex ComicBookExtractor) service.DataProvider {
+func NewComicReleasesScraper(nav, sol *colly.Collector, q *queue.Queue, ex ComicBookExtractor) models.DataProvider {
 	s := &comicReleasesScraper{
 		navCol: nav,
 		solCol: sol,
