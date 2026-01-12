@@ -7,6 +7,7 @@ import (
 	"github.com/PuerkitoBio/goquery"
 	"github.com/gocolly/colly/v2"
 	"github.com/gocolly/colly/v2/queue"
+	"log/slog"
 	"regexp"
 	"strings"
 	"sync/atomic"
@@ -44,6 +45,7 @@ type comicReleasesScraper struct {
 	solCol *colly.Collector
 	queue  *queue.Queue
 	ex     ComicBookExtractor
+	logger *slog.Logger
 
 	ctx    context.Context
 	res    chan<- models.ComicBook
@@ -78,8 +80,19 @@ func (s *comicReleasesScraper) bindCallbacks() {
 		}
 	}
 
+	logErr := func(r *colly.Response, e error) {
+		s.logger.Error("request failed",
+			"url", r.Request.URL,
+			"status", r.StatusCode,
+			"error", e.Error())
+		s.errNum.Add(1)
+	}
+
 	s.navCol.OnRequest(checkCtx)
 	s.solCol.OnRequest(checkCtx)
+
+	s.navCol.OnError(logErr)
+	s.solCol.OnError(logErr)
 
 	s.navCol.OnXML("//loc", func(e *colly.XMLElement) {
 		if !s.ex.MatchURL(e.Text) {
@@ -87,6 +100,9 @@ func (s *comicReleasesScraper) bindCallbacks() {
 		}
 
 		if err := s.queue.AddURL(e.Text); err != nil {
+			s.logger.Warn("failed to add url to queue",
+				"url", e.Text,
+				"err", err.Error())
 			return
 		}
 
@@ -122,12 +138,13 @@ func (s *comicReleasesScraper) parseComicBook(e *colly.HTMLElement) models.Comic
 	return cb
 }
 
-func NewComicReleasesScraper(nav, sol *colly.Collector, q *queue.Queue, ex ComicBookExtractor) models.DataProvider {
+func NewComicReleasesScraper(nav, sol *colly.Collector, l *slog.Logger, q *queue.Queue, ex ComicBookExtractor) models.DataProvider {
 	s := &comicReleasesScraper{
 		navCol: nav,
 		solCol: sol,
 		queue:  q,
 		ex:     ex,
+		logger: l,
 	}
 
 	s.bindCallbacks()
