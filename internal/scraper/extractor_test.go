@@ -1,8 +1,7 @@
-package creleases
+package scraper
 
 import (
 	"github.com/MikkelvtK/solipull/internal/models"
-	"github.com/MikkelvtK/solipull/internal/scraper"
 	"reflect"
 	"regexp"
 	"testing"
@@ -14,7 +13,7 @@ type MockNode struct {
 	name string
 }
 
-func (m MockNode) Each(f func(scraper.HTMLNode)) {
+func (m MockNode) Each(f func(HTMLNode)) {
 	f(m)
 }
 
@@ -29,7 +28,7 @@ func (m MockNode) NodeName() string {
 func TestNewComicReleasesExtractor(t *testing.T) {
 	tests := []struct {
 		name string
-		want scraper.ComicBookExtractor
+		want ComicBookExtractor
 	}{
 		{
 			name: "nil == no errors",
@@ -56,7 +55,7 @@ func Test_comicReleasesExtractor_Creators(t *testing.T) {
 		creatorParser *creatorParser
 	}
 	type args struct {
-		n scraper.HTMLNode
+		n HTMLNode
 	}
 	tests := []struct {
 		name   string

@@ -2,12 +2,6 @@ package scraper
 
 import "github.com/PuerkitoBio/goquery"
 
-type HTMLNode interface {
-	Each(func(HTMLNode))
-	Text() string
-	NodeName() string
-}
-
 type GoQueryNode struct {
 	sel *goquery.Selection
 }

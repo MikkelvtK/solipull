@@ -1,7 +1,6 @@
-package creleases
+package scraper
 
 import (
-	"github.com/MikkelvtK/solipull/internal/scraper"
 	"github.com/gocolly/colly/v2"
 	"github.com/gocolly/colly/v2/queue"
 	"reflect"
@@ -11,7 +10,7 @@ import (
 func setupCollector(domain string, t *testing.T) *colly.Collector {
 	t.Helper()
 
-	c, err := scraper.NewDefaultCollector(domain, nil)
+	c, err := NewDefaultCollector(domain, nil)
 	if err != nil {
 		t.Errorf("%v", err.Error())
 	}
@@ -37,7 +36,7 @@ func TestNewComicReleasesScraper(t *testing.T) {
 	tests := []struct {
 		name string
 		args args
-		want scraper.Scraper
+		want Scraper
 	}{
 		{
 			name: "nil == no errors",

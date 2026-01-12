@@ -1,22 +1,17 @@
 package scraper
 
 import (
+	"context"
 	"fmt"
+	"github.com/MikkelvtK/solipull/internal/models"
+	"github.com/MikkelvtK/solipull/internal/service"
+	"github.com/PuerkitoBio/goquery"
 	"github.com/gocolly/colly/v2"
+	"github.com/gocolly/colly/v2/queue"
 	"regexp"
 	"strings"
 	"time"
 )
-
-type Scraper interface {
-	Run() error
-}
-
-type ParsingStrategy[T any] interface {
-	Selector() string
-	Parse(e T)
-	Bind(c *colly.Collector)
-}
 
 func NewDefaultCollector(domain string, limit *colly.LimitRule) (*colly.Collector, error) {
 	c := colly.NewCollector(
@@ -46,4 +41,94 @@ func NewDefaultCollector(domain string, limit *colly.LimitRule) (*colly.Collecto
 	}
 
 	return c, nil
+}
+
+type comicReleasesScraper struct {
+	navCol *colly.Collector
+	solCol *colly.Collector
+	queue  *queue.Queue
+	ex     ComicBookExtractor
+
+	ctx context.Context
+	res chan<- models.ComicBook
+}
+
+func (s *comicReleasesScraper) GetData(ctx context.Context, url string, results chan<- models.ComicBook) error {
+	s.ctx = ctx
+	s.res = results
+
+	defer func() {
+		s.ctx = nil
+		s.res = nil
+	}()
+
+	if err := s.navCol.Visit(url); err != nil {
+		return err
+	}
+	s.navCol.Wait()
+
+	return s.queue.Run(s.solCol)
+}
+
+func (s *comicReleasesScraper) bindCallbacks() {
+	checkCtx := func(r *colly.Request) {
+		if s.ctx != nil && s.ctx.Err() != nil {
+			r.Abort()
+		}
+	}
+
+	s.navCol.OnRequest(checkCtx)
+	s.solCol.OnRequest(checkCtx)
+
+	s.navCol.OnXML("//loc", func(e *colly.XMLElement) {
+		if !s.ex.MatchURL(e.Text) {
+			return
+		}
+
+		if err := s.queue.AddURL(e.Text); err != nil {
+			return
+		}
+
+		fmt.Println("URL found:", e.Text)
+	})
+
+	s.solCol.OnHTML("div.wp-block-columns", func(e *colly.HTMLElement) {
+		cb := s.parseComicBook(e)
+		if s.res != nil {
+			s.res <- cb
+		}
+	})
+}
+
+func (s *comicReleasesScraper) parseComicBook(e *colly.HTMLElement) models.ComicBook {
+	cb := models.ComicBook{}
+	cb.Publisher = s.ex.Publisher(e.Request.URL.String())
+
+	e.DOM.Children().Find("p").Each(func(i int, sel *goquery.Selection) {
+		switch i {
+		case 0:
+			cb.Title = s.ex.Title(sel.Text())
+			cb.Issue = s.ex.Issue(sel.Text())
+		case 1:
+			cb.Pages = s.ex.Pages(sel.Text())
+			cb.Price = s.ex.Price(sel.Text())
+			cb.Creators = s.ex.Creators(Wrap(sel))
+		case 2:
+			cb.ReleaseDate = s.ex.ReleaseDate(sel.Text())
+		}
+	})
+
+	return cb
+}
+
+func NewComicReleasesScraper(nav, sol *colly.Collector, q *queue.Queue, ex ComicBookExtractor) service.DataProvider {
+	s := &comicReleasesScraper{
+		navCol: nav,
+		solCol: sol,
+		queue:  q,
+		ex:     ex,
+	}
+
+	s.bindCallbacks()
+	return s
 }
