@@ -68,7 +68,8 @@ func (c *comicReleasesExtractor) Issue(s string) string {
 		return ""
 	}
 
-	return cases.Title(language.English).String(split[1])
+	issue := cases.Title(language.English).String(split[1])
+	return strings.TrimSpace(issue)
 }
 
 func (c *comicReleasesExtractor) Pages(s string) string {
