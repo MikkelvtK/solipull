@@ -10,7 +10,6 @@ import (
 	"log/slog"
 	"regexp"
 	"strings"
-	"sync/atomic"
 	"time"
 )
 
@@ -46,10 +45,10 @@ type comicReleasesScraper struct {
 	queue  *queue.Queue
 	ex     ComicBookExtractor
 	logger *slog.Logger
+	stats  *models.RunStats
 
-	ctx    context.Context
-	res    chan<- models.ComicBook
-	errNum atomic.Int32
+	ctx context.Context
+	res chan<- models.ComicBook
 }
 
 func (s *comicReleasesScraper) GetData(ctx context.Context, url string, results chan<- models.ComicBook) error {
@@ -70,7 +69,7 @@ func (s *comicReleasesScraper) GetData(ctx context.Context, url string, results 
 }
 
 func (s *comicReleasesScraper) ErrNum() int {
-	return int(s.errNum.Load())
+	return int(s.stats.ErrorCount.Load())
 }
 
 func (s *comicReleasesScraper) bindCallbacks() {
@@ -85,7 +84,7 @@ func (s *comicReleasesScraper) bindCallbacks() {
 			"url", r.Request.URL,
 			"status", r.StatusCode,
 			"error", e.Error())
-		s.errNum.Add(1)
+		s.stats.ErrorCount.Add(1)
 	}
 
 	s.navCol.OnRequest(checkCtx)
@@ -103,6 +102,7 @@ func (s *comicReleasesScraper) bindCallbacks() {
 			s.logger.Warn("failed to add url to queue",
 				"url", e.Text,
 				"err", err.Error())
+			s.stats.ErrorCount.Add(1)
 			return
 		}
 
@@ -138,13 +138,23 @@ func (s *comicReleasesScraper) parseComicBook(e *colly.HTMLElement) models.Comic
 	return cb
 }
 
-func NewComicReleasesScraper(nav, sol *colly.Collector, l *slog.Logger, q *queue.Queue, ex ComicBookExtractor) models.DataProvider {
+type SConfig struct {
+	nav    *colly.Collector
+	sol    *colly.Collector
+	q      *queue.Queue
+	ex     ComicBookExtractor
+	logger *slog.Logger
+	stats  *models.RunStats
+}
+
+func NewComicReleasesScraper(cfg *SConfig) models.DataProvider {
 	s := &comicReleasesScraper{
-		navCol: nav,
-		solCol: sol,
-		queue:  q,
-		ex:     ex,
-		logger: l,
+		navCol: cfg.nav,
+		solCol: cfg.sol,
+		queue:  cfg.q,
+		ex:     cfg.ex,
+		logger: cfg.logger,
+		stats:  cfg.stats,
 	}
 
 	s.bindCallbacks()

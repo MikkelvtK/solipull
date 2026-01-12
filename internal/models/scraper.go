@@ -1,6 +1,8 @@
 package models
 
-import "context"
+import (
+	"context"
+)
 
 type DataProvider interface {
 	GetData(ctx context.Context, url string, results chan<- ComicBook) error

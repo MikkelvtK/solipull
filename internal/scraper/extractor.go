@@ -5,7 +5,7 @@ import (
 	"github.com/MikkelvtK/solipull/internal/models"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
-	"log"
+	"log/slog"
 	"regexp"
 	"strings"
 	"time"
@@ -29,9 +29,11 @@ type comicReleasesExtractor struct {
 	rePrice       *regexp.Regexp
 	reReleaseDate *regexp.Regexp
 	creatorParser *creatorParser
+	logger        *slog.Logger
+	stats         *models.RunStats
 }
 
-func NewComicReleasesExtractor(months, publishers []string) ComicBookExtractor {
+func NewComicReleasesExtractor(months, publishers []string, l *slog.Logger, s *models.RunStats) ComicBookExtractor {
 	return &comicReleasesExtractor{
 		reUrl:         regexp.MustCompile(generateUrlRegex(months, publishers)),
 		rePublisher:   regexp.MustCompile(`(?i)/(?P<Pub>\w+)-[a-zA-Z]+-\d{4}-solicitations`),
@@ -39,6 +41,8 @@ func NewComicReleasesExtractor(months, publishers []string) ComicBookExtractor {
 		rePrice:       regexp.MustCompile(`\$(\d+\.\d{2})`),
 		reReleaseDate: regexp.MustCompile(`(?i)(\d{1,2}/\d{1,2}/\d{2,4})`),
 		creatorParser: newCreatorParser([]string{"writer", "artist", "cover artist"}),
+		logger:        l,
+		stats:         s,
 	}
 }
 
@@ -49,7 +53,8 @@ func (c *comicReleasesExtractor) MatchURL(url string) bool {
 func (c *comicReleasesExtractor) Title(s string) string {
 	split := strings.Split(s, "#")
 	if len(split[0]) == 0 {
-		log.Println("no title found")
+		c.logger.Warn("title not found", "string", s)
+		c.stats.ErrorCount.Add(1)
 		return ""
 	}
 
@@ -68,17 +73,22 @@ func (c *comicReleasesExtractor) Issue(s string) string {
 
 func (c *comicReleasesExtractor) Pages(s string) string {
 	if c.rePages == nil {
-		log.Println("pages regex is nil")
+		c.logger.Warn("pages regex is nil")
+		c.stats.ErrorCount.Add(1)
 		return ""
 	}
 
 	matches := c.rePages.FindStringSubmatch(s)
 	if matches == nil {
+		c.logger.Warn("no matches for pages found", "string", s, "matches", matches)
+		c.stats.ErrorCount.Add(1)
 		return ""
 	}
 
 	i := c.rePages.SubexpIndex("Pages")
 	if i < 0 {
+		c.logger.Warn("no index for pages found", "string", s, "i", i)
+		c.stats.ErrorCount.Add(1)
 		return ""
 	}
 
@@ -87,7 +97,8 @@ func (c *comicReleasesExtractor) Pages(s string) string {
 
 func (c *comicReleasesExtractor) Price(s string) string {
 	if c.rePrice == nil {
-		log.Println("price regex is nil")
+		c.logger.Warn("price regex is nil")
+		c.stats.ErrorCount.Add(1)
 		return ""
 	}
 	return c.rePrice.FindString(s)
@@ -95,17 +106,22 @@ func (c *comicReleasesExtractor) Price(s string) string {
 
 func (c *comicReleasesExtractor) Publisher(s string) string {
 	if c.rePublisher == nil {
-		log.Println("publisher regex is nil")
+		c.logger.Warn("publisher regex is nil")
+		c.stats.ErrorCount.Add(1)
 		return ""
 	}
 
 	matches := c.rePublisher.FindStringSubmatch(s)
 	if matches == nil {
+		c.logger.Warn("no matches for publisher found", "string", s, "matches", matches)
+		c.stats.ErrorCount.Add(1)
 		return ""
 	}
 
 	i := c.rePublisher.SubexpIndex("Pub")
 	if i < 0 {
+		c.logger.Warn("no index for publisher found", "string", s, "i", i)
+		c.stats.ErrorCount.Add(1)
 		return ""
 	}
 	return strings.ToLower(matches[i])
@@ -117,18 +133,22 @@ func (c *comicReleasesExtractor) Creators(n HTMLNode) []models.Creator {
 
 func (c *comicReleasesExtractor) ReleaseDate(s string) time.Time {
 	if c.reReleaseDate == nil {
-		log.Println("release date regex is nil")
+		c.logger.Warn("release date regex is nil")
+		c.stats.ErrorCount.Add(1)
 		return time.Time{}
 	}
 
 	d := c.reReleaseDate.FindString(s)
 	if d == "" {
+		c.logger.Warn("no release date found", "string", s)
+		c.stats.ErrorCount.Add(1)
 		return time.Time{}
 	}
 
 	t, err := time.Parse("1/2/06", d)
 	if err != nil {
-		log.Println(err)
+		c.logger.Warn("failed to parse release date", "string", s, "error", err.Error())
+		c.stats.ErrorCount.Add(1)
 		return time.Time{}
 	}
 
@@ -153,7 +173,6 @@ func (c *creatorParser) parse(n HTMLNode) []models.Creator {
 	results := make([]models.Creator, 0)
 
 	if n == nil {
-		log.Println("HTMLNode is nil")
 		return results
 	}
 
