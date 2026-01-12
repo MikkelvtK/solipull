@@ -65,7 +65,12 @@ func (s *comicReleasesScraper) GetData(ctx context.Context, url string, results 
 	}
 	s.navCol.Wait()
 
-	return s.queue.Run(s.solCol)
+	if err := s.queue.Run(s.solCol); err != nil {
+		return err
+	}
+	s.solCol.Wait()
+
+	return nil
 }
 
 func (s *comicReleasesScraper) ErrNum() int {
@@ -139,22 +144,22 @@ func (s *comicReleasesScraper) parseComicBook(e *colly.HTMLElement) models.Comic
 }
 
 type SConfig struct {
-	nav    *colly.Collector
-	sol    *colly.Collector
-	q      *queue.Queue
-	ex     ComicBookExtractor
-	logger *slog.Logger
-	stats  *models.RunStats
+	Nav    *colly.Collector
+	Sol    *colly.Collector
+	Q      *queue.Queue
+	Ex     ComicBookExtractor
+	Logger *slog.Logger
+	Stats  *models.RunStats
 }
 
 func NewComicReleasesScraper(cfg *SConfig) models.DataProvider {
 	s := &comicReleasesScraper{
-		navCol: cfg.nav,
-		solCol: cfg.sol,
-		queue:  cfg.q,
-		ex:     cfg.ex,
-		logger: cfg.logger,
-		stats:  cfg.stats,
+		navCol: cfg.Nav,
+		solCol: cfg.Sol,
+		queue:  cfg.Q,
+		ex:     cfg.Ex,
+		logger: cfg.Logger,
+		stats:  cfg.Stats,
 	}
 
 	s.bindCallbacks()

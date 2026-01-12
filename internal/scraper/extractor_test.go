@@ -2,6 +2,7 @@ package scraper
 
 import (
 	"github.com/MikkelvtK/solipull/internal/models"
+	"log/slog"
 	"reflect"
 	"regexp"
 	"testing"
@@ -43,7 +44,7 @@ func TestNewComicReleasesExtractor(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := NewComicReleasesExtractor(); !reflect.DeepEqual(got, tt.want) {
+			if got := NewComicReleasesExtractor([]string{"march"}, []string{"dc"}, slog.Default(), &models.RunStats{}); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("NewComicReleasesExtractor() = %v, want %v", got, tt.want)
 			}
 		})

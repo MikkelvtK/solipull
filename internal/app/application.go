@@ -1,23 +1,20 @@
 package app
 
 import (
-	"github.com/MikkelvtK/solipull/internal/cache"
+	"github.com/MikkelvtK/solipull/internal/models"
 	"github.com/MikkelvtK/solipull/internal/scraper"
 	"github.com/MikkelvtK/solipull/internal/service"
-	"github.com/gocolly/colly/v2"
 	"github.com/gocolly/colly/v2/queue"
 	"log"
-	"time"
+	"log/slog"
 )
 
 type Application struct {
-	Scraper scraper.Scraper
-	Cache   *cache.Cache
+	Serv *service.SolicitationService
 }
 
 func NewApplication(months, publishers []string) *Application {
-	c := cache.NewCache()
-	e := scraper.NewComicReleasesExtractor(months, publishers)
+	e := scraper.NewComicReleasesExtractor(months, publishers, slog.Default(), models.NewRunStats())
 	q, err := queue.New(5, &queue.InMemoryQueueStorage{MaxSize: 10_000})
 	if err != nil {
 		log.Fatal(err)
@@ -30,10 +27,21 @@ func NewApplication(months, publishers []string) *Application {
 
 	navCollector := col.Clone()
 	solCollector := col.Clone()
-	s := scraper.NewComicReleasesScraper(navCollector, solCollector, q, e)
+
+	cfg := scraper.SConfig{
+		Nav:    navCollector,
+		Sol:    solCollector,
+		Q:      q,
+		Ex:     e,
+		Logger: slog.Default(),
+		Stats:  models.NewRunStats(),
+	}
+
+	s := scraper.NewComicReleasesScraper(&cfg)
+
+	serv := service.NewSolicitationService(s, slog.Default(), models.NewRunStats())
 
 	return &Application{
-		Scraper: s,
-		Cache:   c,
+		Serv: serv,
 	}
 }
