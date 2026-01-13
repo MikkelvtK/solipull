@@ -141,8 +141,6 @@ func (c *comicReleasesExtractor) ReleaseDate(s string) time.Time {
 
 	d := c.reReleaseDate.FindString(s)
 	if d == "" {
-		c.logger.Warn("no release date found", "string", s)
-		c.stats.ErrorCount.Add(1)
 		return time.Time{}
 	}
 

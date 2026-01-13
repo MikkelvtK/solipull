@@ -6,6 +6,6 @@ import (
 )
 
 func main() {
-	a := app.NewApplication([]string{"february", "march"}, []string{"dc", "marvel"})
+	a := app.NewApplication([]string{"february"}, []string{"marvel"})
 	a.Serv.Sync(context.Background())
 }

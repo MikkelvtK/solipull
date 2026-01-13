@@ -13,6 +13,11 @@ import (
 	"time"
 )
 
+var (
+	reBrackets = regexp.MustCompile(`[(\[].*?[)\]]`)
+	reAlphaNum = regexp.MustCompile(`[^a-z0-9\s]`)
+)
+
 func NewCollector(domain string, parallelism int, cache string) (*colly.Collector, error) {
 	c := colly.NewCollector(
 		colly.Async(true),
@@ -69,6 +74,10 @@ func (s *comicReleasesScraper) GetData(ctx context.Context, url string, results 
 	}
 	s.navCol.Wait()
 
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	if err := s.queue.Run(s.solCol); err != nil {
 		return err
 	}
@@ -119,8 +128,6 @@ func (s *comicReleasesScraper) bindCallbacks() {
 	})
 
 	s.solCol.OnHTML("div.wp-block-columns", func(e *colly.HTMLElement) {
-		//var format string
-
 		cb := s.parseComicBook(e)
 		if s.res != nil {
 			s.res <- cb
@@ -129,6 +136,7 @@ func (s *comicReleasesScraper) bindCallbacks() {
 }
 
 func (s *comicReleasesScraper) parseComicBook(e *colly.HTMLElement) models.ComicBook {
+	var fullTitle string
 	cb := models.ComicBook{}
 	cb.Publisher = s.ex.Publisher(e.Request.URL.String())
 	cb.Format, _ = e.DOM.PrevAll().Filter("#singles, #trades, #hardcovers").First().Attr("id")
@@ -136,6 +144,7 @@ func (s *comicReleasesScraper) parseComicBook(e *colly.HTMLElement) models.Comic
 	e.DOM.Children().Find("p").Each(func(i int, sel *goquery.Selection) {
 		switch i {
 		case 0:
+			fullTitle = sel.Text()
 			cb.Title = s.ex.Title(sel.Text())
 			cb.Issue = s.ex.Issue(sel.Text())
 		case 1:
@@ -147,7 +156,35 @@ func (s *comicReleasesScraper) parseComicBook(e *colly.HTMLElement) models.Comic
 		}
 	})
 
+	if !cb.ReleaseDate.IsZero() {
+		return cb
+	}
+
+	e.DOM.NextAllFiltered(":contains('ON-SALE'), :contains('FOC')").Each(func(_ int, p *goquery.Selection) {
+		p.Next().Find("li").Each(func(_ int, pe *goquery.Selection) {
+
+			if strings.EqualFold(normalizeTitle(pe.Text()), normalizeTitle(fullTitle)) {
+				if strings.Contains(pe.Text(), "ON SALE") {
+					cb.ReleaseDate = s.ex.ReleaseDate(pe.Text())
+				} else {
+					cb.ReleaseDate = s.ex.ReleaseDate(p.Text())
+				}
+			}
+		})
+	})
+
+	if cb.ReleaseDate.IsZero() {
+		s.logger.Warn("no release date found", "string", s)
+		s.stats.ErrorCount.Add(1)
+	}
 	return cb
+}
+
+func normalizeTitle(s string) string {
+	s = strings.ToLower(s)
+	s = reBrackets.ReplaceAllString(s, "")
+	s = reAlphaNum.ReplaceAllString(s, "")
+	return strings.Join(strings.Fields(s), " ")
 }
 
 type SConfig struct {

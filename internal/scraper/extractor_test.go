@@ -171,6 +171,20 @@ func Test_comicReleasesExtractor_Issue(t *testing.T) {
 			},
 			want: "1.5",
 		},
+		{
+			name: "handles incoherent issue number",
+			args: args{
+				s: "Batman #1 FACSIMILE EDITION               dsgsdgsdgsdgdsgsdgg",
+			},
+			want: "1 Facsimile Edition               Dsgsdgsdgsdgdsgsdgg",
+		},
+		{
+			name: "handles extra whitespace",
+			args: args{
+				s: "Batman #1 FACSIMILE EDITION                    ",
+			},
+			want: "1 Facsimile Edition",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -27,7 +27,7 @@ func NewSolicitationService(p models.DataProvider, l *slog.Logger, s *models.Run
 }
 
 func (s *SolicitationService) Sync(ctx context.Context) error {
-	results := make(chan models.ComicBook)
+	results := make(chan models.ComicBook, 100)
 	wg := &sync.WaitGroup{}
 	url := "https://" + Domain + "/sitemap.xml"
 
