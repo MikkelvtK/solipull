@@ -1,27 +1,36 @@
 package app
 
 import (
+	"github.com/MikkelvtK/solipull/internal/database"
+	"github.com/MikkelvtK/solipull/internal/database/sqlite"
 	"github.com/MikkelvtK/solipull/internal/models"
 	"github.com/MikkelvtK/solipull/internal/scraper"
 	"github.com/MikkelvtK/solipull/internal/service"
 	"github.com/gocolly/colly/v2/queue"
 	"log"
 	"log/slog"
+	"os"
 )
 
 type Application struct {
 	Serv *service.SolicitationService
+	repo models.ComicBookRepository
 }
 
 func NewApplication(months, publishers []string) *Application {
+	cfgDir, _ := os.UserConfigDir()
+
+	db := database.MustOpen(cfgDir+"/solipull/solipull.db", "sqlite")
+	repo := sqlite.NewComicBookRepository(db)
+
 	e := scraper.NewComicReleasesExtractor(months, publishers, slog.Default(), models.NewRunStats())
 	q, err := queue.New(5, &queue.InMemoryQueueStorage{MaxSize: 10_000})
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	navCollector, _ := scraper.NewCollector(service.Domain, 5, "")
-	solCollector, _ := scraper.NewCollector(service.Domain, 5, "comicreleases")
+	navCollector, _ := scraper.NewCollector(service.Domain, 5)
+	solCollector, _ := scraper.NewCollector(service.Domain, 5)
 
 	cfg := scraper.SConfig{
 		Nav:    navCollector,
@@ -34,9 +43,10 @@ func NewApplication(months, publishers []string) *Application {
 
 	s := scraper.NewComicReleasesScraper(&cfg)
 
-	serv := service.NewSolicitationService(s, slog.Default(), models.NewRunStats())
+	serv := service.NewSolicitationService(s, repo, slog.Default(), models.NewRunStats())
 
 	return &Application{
 		Serv: serv,
+		repo: repo,
 	}
 }

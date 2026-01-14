@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/MikkelvtK/solipull/internal/models"
+	"github.com/MikkelvtK/solipull/internal/service"
 	"github.com/PuerkitoBio/goquery"
 	"github.com/gocolly/colly/v2"
 	"github.com/gocolly/colly/v2/queue"
@@ -18,15 +19,11 @@ var (
 	reAlphaNum = regexp.MustCompile(`[^a-z0-9\s]`)
 )
 
-func NewCollector(domain string, parallelism int, cache string) (*colly.Collector, error) {
+func NewCollector(domain string, parallelism int) (*colly.Collector, error) {
 	c := colly.NewCollector(
 		colly.Async(true),
 		colly.MaxDepth(1),
 	)
-
-	if cache != "" {
-		c.CacheDir = cache + "_cache"
-	}
 
 	domainSplit := strings.Split(domain, ".")
 	if len(domainSplit) != 2 {
@@ -54,10 +51,10 @@ type comicReleasesScraper struct {
 	queue  *queue.Queue
 	ex     ComicBookExtractor
 	logger *slog.Logger
-	stats  *models.RunStats
 
-	ctx context.Context
-	res chan<- models.ComicBook
+	observer service.ScrapingObserver
+	ctx      context.Context
+	res      chan<- models.ComicBook
 }
 
 func (s *comicReleasesScraper) GetData(ctx context.Context, url string, results chan<- models.ComicBook) error {
@@ -86,10 +83,6 @@ func (s *comicReleasesScraper) GetData(ctx context.Context, url string, results 
 	return nil
 }
 
-func (s *comicReleasesScraper) ErrNum() int {
-	return int(s.stats.ErrorCount.Load())
-}
-
 func (s *comicReleasesScraper) bindCallbacks() {
 	checkCtx := func(r *colly.Request) {
 		if s.ctx != nil && s.ctx.Err() != nil {
@@ -102,7 +95,7 @@ func (s *comicReleasesScraper) bindCallbacks() {
 			"url", r.Request.URL,
 			"status", r.StatusCode,
 			"error", e.Error())
-		s.stats.ErrorCount.Add(1)
+		s.observer.OnError(1)
 	}
 
 	s.navCol.OnRequest(checkCtx)
@@ -120,16 +113,17 @@ func (s *comicReleasesScraper) bindCallbacks() {
 			s.logger.Warn("failed to add url to queue",
 				"url", e.Text,
 				"err", err.Error())
-			s.stats.ErrorCount.Add(1)
+			s.observer.OnError(1)
 			return
 		}
 
-		fmt.Println("URL found:", e.Text)
+		s.observer.OnUrlFound(1)
 	})
 
 	s.solCol.OnHTML("div.wp-block-columns", func(e *colly.HTMLElement) {
 		cb := s.parseComicBook(e)
 		if s.res != nil {
+			s.observer.OnComicBookScraped(1)
 			s.res <- cb
 		}
 	})
@@ -162,7 +156,6 @@ func (s *comicReleasesScraper) parseComicBook(e *colly.HTMLElement) models.Comic
 
 	e.DOM.NextAllFiltered(":contains('ON-SALE'), :contains('FOC')").Each(func(_ int, p *goquery.Selection) {
 		p.Next().Find("li").Each(func(_ int, pe *goquery.Selection) {
-
 			if strings.EqualFold(normalizeTitle(pe.Text()), normalizeTitle(fullTitle)) {
 				if strings.Contains(pe.Text(), "ON SALE") {
 					cb.ReleaseDate = s.ex.ReleaseDate(pe.Text())
@@ -175,7 +168,7 @@ func (s *comicReleasesScraper) parseComicBook(e *colly.HTMLElement) models.Comic
 
 	if cb.ReleaseDate.IsZero() {
 		s.logger.Warn("no release date found", "string", s)
-		s.stats.ErrorCount.Add(1)
+		s.observer.OnError(1)
 	}
 	return cb
 }
@@ -193,7 +186,6 @@ type SConfig struct {
 	Q      *queue.Queue
 	Ex     ComicBookExtractor
 	Logger *slog.Logger
-	Stats  *models.RunStats
 }
 
 func NewComicReleasesScraper(cfg *SConfig) models.DataProvider {
@@ -203,7 +195,6 @@ func NewComicReleasesScraper(cfg *SConfig) models.DataProvider {
 		queue:  cfg.Q,
 		ex:     cfg.Ex,
 		logger: cfg.Logger,
-		stats:  cfg.Stats,
 	}
 
 	s.bindCallbacks()
