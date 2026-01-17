@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"github.com/MikkelvtK/solipull/internal/models"
-	"log/slog"
 	"sync"
 )
 
@@ -11,29 +10,31 @@ const (
 	Domain = "comicreleases.com"
 )
 
+type DataProvider interface {
+	GetData(ctx context.Context, url string, results chan<- models.ComicBook, observer ScrapingObserver) error
+}
+
 type ScrapingObserver interface {
 	models.ErrorObserver
-	OnUrlFound(int)
-	OnComicBookScraped(int)
+	OnUrlFound(n int)
+	OnNavigationComplete()
+	OnComicBookScraped(n int)
+	OnScrapingComplete()
 }
 
 type SolicitationService struct {
-	scraper models.DataProvider
+	scraper DataProvider
 	repo    models.ComicBookRepository
-	logger  *slog.Logger
-	stats   *models.RunStats
 }
 
-func NewSolicitationService(p models.DataProvider, r models.ComicBookRepository, l *slog.Logger, s *models.RunStats) *SolicitationService {
+func NewSolicitationService(p DataProvider, r models.ComicBookRepository) *SolicitationService {
 	return &SolicitationService{
 		scraper: p,
-		logger:  l,
-		stats:   s,
 		repo:    r,
 	}
 }
 
-func (s *SolicitationService) Sync(ctx context.Context) error {
+func (s *SolicitationService) Sync(ctx context.Context, observer ScrapingObserver) error {
 	results := make(chan models.ComicBook, 100)
 	errCh := make(chan error, 1)
 	wg := &sync.WaitGroup{}
@@ -43,7 +44,7 @@ func (s *SolicitationService) Sync(ctx context.Context) error {
 
 	go s.bulkSave(ctx, results, errCh, wg)
 
-	err := s.scraper.GetData(ctx, url, results)
+	err := s.scraper.GetData(ctx, url, results, observer)
 	close(results)
 	wg.Wait()
 

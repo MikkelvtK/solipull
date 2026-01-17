@@ -10,6 +10,7 @@ import (
 	"github.com/gocolly/colly/v2/queue"
 	"log/slog"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -57,13 +58,17 @@ type comicReleasesScraper struct {
 	res      chan<- models.ComicBook
 }
 
-func (s *comicReleasesScraper) GetData(ctx context.Context, url string, results chan<- models.ComicBook) error {
+func (s *comicReleasesScraper) GetData(ctx context.Context, url string, results chan<- models.ComicBook, obs service.ScrapingObserver) error {
 	s.ctx = ctx
 	s.res = results
+	s.observer = obs
+
+	s.bindCallbacks(ctx)
 
 	defer func() {
 		s.ctx = nil
 		s.res = nil
+		s.observer = nil
 	}()
 
 	if err := s.navCol.Visit(url); err != nil {
@@ -83,7 +88,7 @@ func (s *comicReleasesScraper) GetData(ctx context.Context, url string, results 
 	return nil
 }
 
-func (s *comicReleasesScraper) bindCallbacks() {
+func (s *comicReleasesScraper) bindCallbacks(ctx context.Context) {
 	checkCtx := func(r *colly.Request) {
 		if s.ctx != nil && s.ctx.Err() != nil {
 			r.Abort()
@@ -91,11 +96,10 @@ func (s *comicReleasesScraper) bindCallbacks() {
 	}
 
 	logErr := func(r *colly.Response, e error) {
-		s.logger.Error("request failed",
-			"url", r.Request.URL,
-			"status", r.StatusCode,
+		s.observer.OnError(s.ctx, slog.LevelError, "request failed",
+			"url", r.Request.URL.String(),
+			"status", strconv.Itoa(r.StatusCode),
 			"error", e.Error())
-		s.observer.OnError(1)
 	}
 
 	s.navCol.OnRequest(checkCtx)
@@ -110,43 +114,55 @@ func (s *comicReleasesScraper) bindCallbacks() {
 		}
 
 		if err := s.queue.AddURL(e.Text); err != nil {
-			s.logger.Warn("failed to add url to queue",
+			s.observer.OnError(s.ctx, slog.LevelError, "failed to add url to queue",
 				"url", e.Text,
 				"err", err.Error())
-			s.observer.OnError(1)
 			return
 		}
 
 		s.observer.OnUrlFound(1)
 	})
 
+	s.navCol.OnScraped(func(r *colly.Response) {
+		if r.StatusCode == 200 {
+			s.observer.OnNavigationComplete()
+		}
+	})
+
 	s.solCol.OnHTML("div.wp-block-columns", func(e *colly.HTMLElement) {
-		cb := s.parseComicBook(e)
+		cb := s.parseComicBook(ctx, e)
 		if s.res != nil {
-			s.observer.OnComicBookScraped(1)
 			s.res <- cb
+		}
+
+		s.observer.OnComicBookScraped(1)
+	})
+
+	s.solCol.OnScraped(func(r *colly.Response) {
+		if r.StatusCode == 200 {
+			s.observer.OnScrapingComplete()
 		}
 	})
 }
 
-func (s *comicReleasesScraper) parseComicBook(e *colly.HTMLElement) models.ComicBook {
+func (s *comicReleasesScraper) parseComicBook(ctx context.Context, e *colly.HTMLElement) models.ComicBook {
 	var fullTitle string
 	cb := models.ComicBook{}
-	cb.Publisher = s.ex.Publisher(e.Request.URL.String())
+	cb.Publisher = s.ex.Publisher(ctx, e.Request.URL.String(), s.observer)
 	cb.Format, _ = e.DOM.PrevAll().Filter("#singles, #trades, #hardcovers").First().Attr("id")
 
 	e.DOM.Children().Find("p").Each(func(i int, sel *goquery.Selection) {
 		switch i {
 		case 0:
 			fullTitle = sel.Text()
-			cb.Title = s.ex.Title(sel.Text())
+			cb.Title = s.ex.Title(ctx, sel.Text(), s.observer)
 			cb.Issue = s.ex.Issue(sel.Text())
 		case 1:
-			cb.Pages = s.ex.Pages(sel.Text())
-			cb.Price = s.ex.Price(sel.Text())
+			cb.Pages = s.ex.Pages(ctx, sel.Text(), s.observer)
+			cb.Price = s.ex.Price(ctx, sel.Text(), s.observer)
 			cb.Creators = s.ex.Creators(Wrap(sel))
 		case 2:
-			cb.ReleaseDate = s.ex.ReleaseDate(sel.Text())
+			cb.ReleaseDate = s.ex.ReleaseDate(ctx, sel.Text(), s.observer)
 		}
 	})
 
@@ -158,17 +174,16 @@ func (s *comicReleasesScraper) parseComicBook(e *colly.HTMLElement) models.Comic
 		p.Next().Find("li").Each(func(_ int, pe *goquery.Selection) {
 			if strings.EqualFold(normalizeTitle(pe.Text()), normalizeTitle(fullTitle)) {
 				if strings.Contains(pe.Text(), "ON SALE") {
-					cb.ReleaseDate = s.ex.ReleaseDate(pe.Text())
+					cb.ReleaseDate = s.ex.ReleaseDate(ctx, pe.Text(), s.observer)
 				} else {
-					cb.ReleaseDate = s.ex.ReleaseDate(p.Text())
+					cb.ReleaseDate = s.ex.ReleaseDate(ctx, p.Text(), s.observer)
 				}
 			}
 		})
 	})
 
 	if cb.ReleaseDate.IsZero() {
-		s.logger.Warn("no release date found", "string", s)
-		s.observer.OnError(1)
+		s.observer.OnError(s.ctx, slog.LevelWarn, "no release date found")
 	}
 	return cb
 }
@@ -188,15 +203,12 @@ type SConfig struct {
 	Logger *slog.Logger
 }
 
-func NewComicReleasesScraper(cfg *SConfig) models.DataProvider {
-	s := &comicReleasesScraper{
+func NewComicReleasesScraper(cfg *SConfig) service.DataProvider {
+	return &comicReleasesScraper{
 		navCol: cfg.Nav,
 		solCol: cfg.Sol,
 		queue:  cfg.Q,
 		ex:     cfg.Ex,
 		logger: cfg.Logger,
 	}
-
-	s.bindCallbacks()
-	return s
 }

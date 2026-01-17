@@ -5,6 +5,8 @@ import (
 	"embed"
 	"fmt"
 	"github.com/pressly/goose/v3"
+	"io"
+	"log"
 	"os"
 	"path/filepath"
 
@@ -31,8 +33,8 @@ func MustOpen(path, driver string) *sql.DB {
 	}
 
 	// TODO: eventually redirect this to custom logger
-	//discardLogger := log.New(io.Discard, "", 0)
-	//goose.SetLogger(discardLogger)
+	discardLogger := log.New(io.Discard, "", 0)
+	goose.SetLogger(discardLogger)
 
 	goose.SetBaseFS(migrations)
 	if err := goose.SetDialect(driver); err != nil {
