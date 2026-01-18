@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/MikkelvtK/solipull/internal/models"
 	"github.com/MikkelvtK/solipull/internal/service"
+	"github.com/charmbracelet/huh"
 	"github.com/urfave/cli/v3"
 	"log/slog"
 )
@@ -13,7 +14,7 @@ type CLI struct {
 	cmd        *cli.Command
 	solService *service.SolicitationService
 
-	syncRep *syncReporter
+	form    *huh.Form
 	metrics *models.AppMetrics
 	logger  *slog.Logger
 }

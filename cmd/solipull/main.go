@@ -11,11 +11,11 @@ import (
 )
 
 func main() {
-	a := app.NewApplication([]string{"march"}, []string{"dc", "marvel"})
+	a := app.NewApplication([]string{"march", "february"}, []string{"dc", "marvel", "image"})
 
 	cmd := cli.New(a.Serv, &models.AppMetrics{}, slog.Default())
 	if err := cmd.Run(context.Background(), os.Args); err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
+		fmt.Fprintf(os.Stderr, "Error running cli: %v\n", err.Error())
 		os.Exit(1)
 	}
 }

@@ -23,7 +23,7 @@ func NewApplication(months, publishers []string) *Application {
 	db := database.MustOpen(cfgDir+"/solipull/solipull.db", "sqlite")
 	repo := sqlite.NewComicBookRepository(db)
 
-	e := scraper.NewComicReleasesExtractor(months, publishers, slog.Default())
+	e := scraper.NewComicReleasesExtractor(slog.Default())
 	q, err := queue.New(5, &queue.InMemoryQueueStorage{MaxSize: 10_000})
 	if err != nil {
 		log.Fatal(err)

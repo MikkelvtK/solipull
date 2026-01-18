@@ -2,6 +2,7 @@ package scraper
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/MikkelvtK/solipull/internal/models"
 	"github.com/MikkelvtK/solipull/internal/service"
@@ -88,6 +89,15 @@ func (s *comicReleasesScraper) GetData(ctx context.Context, url string, results 
 	return nil
 }
 
+func (s *comicReleasesScraper) SetInputs(months, publishers []string) error {
+	if s.ex == nil {
+		return errors.New("extractor not initialized in scraper")
+	}
+
+	s.ex.SetUrlMatcher(months, publishers)
+	return nil
+}
+
 func (s *comicReleasesScraper) bindCallbacks(ctx context.Context) {
 	checkCtx := func(r *colly.Request) {
 		if s.ctx != nil && s.ctx.Err() != nil {
@@ -109,7 +119,7 @@ func (s *comicReleasesScraper) bindCallbacks(ctx context.Context) {
 	s.solCol.OnError(logErr)
 
 	s.navCol.OnXML("//loc", func(e *colly.XMLElement) {
-		if !s.ex.MatchURL(e.Text) {
+		if !s.ex.MatchURL(ctx, e.Text, s.observer) {
 			return
 		}
 

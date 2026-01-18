@@ -12,6 +12,7 @@ const (
 
 type DataProvider interface {
 	GetData(ctx context.Context, url string, results chan<- models.ComicBook, observer ScrapingObserver) error
+	SetInputs(months, publishers []string) error
 }
 
 type ScrapingObserver interface {
@@ -34,13 +35,17 @@ func NewSolicitationService(p DataProvider, r models.ComicBookRepository) *Solic
 	}
 }
 
-func (s *SolicitationService) Sync(ctx context.Context, observer ScrapingObserver) error {
+func (s *SolicitationService) Sync(ctx context.Context, observer ScrapingObserver, months, publishers []string) error {
 	results := make(chan models.ComicBook, 100)
 	errCh := make(chan error, 1)
 	wg := &sync.WaitGroup{}
 	url := "https://" + Domain + "/sitemap.xml"
 
 	defer close(errCh)
+
+	if err := s.scraper.SetInputs(months, publishers); err != nil {
+		return err
+	}
 
 	go s.bulkSave(ctx, results, errCh, wg)
 

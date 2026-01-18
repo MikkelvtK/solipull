@@ -13,7 +13,8 @@ import (
 )
 
 type ComicBookExtractor interface {
-	MatchURL(string) bool
+	MatchURL(context.Context, string, models.ErrorObserver) bool
+	SetUrlMatcher([]string, []string)
 	Title(context.Context, string, models.ErrorObserver) string
 	Issue(string) string
 	Pages(context.Context, string, models.ErrorObserver) string
@@ -33,9 +34,8 @@ type comicReleasesExtractor struct {
 	logger        *slog.Logger
 }
 
-func NewComicReleasesExtractor(months, publishers []string, l *slog.Logger) ComicBookExtractor {
+func NewComicReleasesExtractor(l *slog.Logger) ComicBookExtractor {
 	return &comicReleasesExtractor{
-		reUrl:         regexp.MustCompile(generateUrlRegex(months, publishers)),
 		rePublisher:   regexp.MustCompile(`(?i)/(?P<Pub>\w+)-[a-zA-Z]+-\d{4}-solicitations`),
 		rePages:       regexp.MustCompile(`(?P<Pages>\d+)\s*(?i)(?:pages?|pgs?.?)`),
 		rePrice:       regexp.MustCompile(`\$(\d+\.\d{2})`),
@@ -45,7 +45,16 @@ func NewComicReleasesExtractor(months, publishers []string, l *slog.Logger) Comi
 	}
 }
 
-func (c *comicReleasesExtractor) MatchURL(url string) bool {
+func (c *comicReleasesExtractor) SetUrlMatcher(months, publishers []string) {
+	c.reUrl = regexp.MustCompile(generateUrlRegex(months, publishers))
+}
+
+func (c *comicReleasesExtractor) MatchURL(ctx context.Context, url string, observer models.ErrorObserver) bool {
+	if c.reUrl == nil {
+		observer.OnError(ctx, slog.LevelWarn, "url regex compilation failed")
+		return false
+	}
+
 	return c.reUrl.MatchString(url)
 }
 
