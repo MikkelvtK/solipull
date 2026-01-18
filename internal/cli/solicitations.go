@@ -15,6 +15,8 @@ import (
 	"time"
 )
 
+var allowedPublishers = []string{"dc", "marvel", "image"}
+
 func (c *CLI) sync() *cli.Command {
 	return &cli.Command{
 		Name:  "sync",
@@ -42,10 +44,43 @@ func (c *CLI) sync() *cli.Command {
 
 			return rep.reportResults()
 		},
+		Flags: []cli.Flag{
+			&cli.StringSliceFlag{
+				Name:    "publisher",
+				Aliases: []string{"p"},
+				Usage:   "Publishers to sync. Can be provided multiple times or via comma-separated values.",
+			},
+		},
 	}
 }
 
 func getPublishersUserInput(cmd *cli.Command) ([]string, error) {
+	raw := cmd.StringSlice("publisher")
+
+	if len(raw) > 0 {
+		publishers := make([]string, 0, len(raw))
+
+		for _, item := range raw {
+			parts := strings.Split(item, ",")
+
+			for _, p := range parts {
+				lp := strings.ToLower(strings.TrimSpace(p))
+
+				if !slices.Contains(allowedPublishers, lp) {
+					return nil, fmt.Errorf("invalid publisher specified: %s", p)
+				}
+
+				if slices.Contains(publishers, lp) {
+					return nil, fmt.Errorf("duplicate publisher specified: %s", p)
+				}
+
+				publishers = append(publishers, lp)
+			}
+		}
+
+		return publishers, nil
+	}
+
 	var input []string
 
 	form := huh.NewForm(
@@ -57,16 +92,18 @@ func getPublishersUserInput(cmd *cli.Command) ([]string, error) {
 					huh.NewOption("Marvel", "marvel"),
 					huh.NewOption("Image", "image"),
 				).
-				Value(&input),
+				Value(&input).
+				Validate(func(v []string) error {
+					if len(v) == 0 {
+						return errors.New("please select at least one publisher")
+					}
+					return nil
+				}),
 		),
 	)
 
 	if err := form.Run(); err != nil {
 		return nil, err
-	}
-
-	if len(input) == 0 {
-		return nil, errors.New("no publishers to scrape provided")
 	}
 	return input, nil
 }
