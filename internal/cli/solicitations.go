@@ -12,10 +12,13 @@ import (
 	"os"
 	"slices"
 	"strings"
-	"time"
 )
 
-var allowedPublishers = []string{"dc", "marvel", "image"}
+var (
+	allowedPublishers = []string{"dc", "marvel", "image"}
+	allowedMonths     = []string{"january", "february", "march", "april", "may", "june", "july", "august", "september",
+		"october", "november", "december"}
+)
 
 func (c *CLI) sync() *cli.Command {
 	return &cli.Command{
@@ -50,6 +53,11 @@ func (c *CLI) sync() *cli.Command {
 				Aliases: []string{"p"},
 				Usage:   "Publishers to sync. Can be provided multiple times or via comma-separated values.",
 			},
+			&cli.StringSliceFlag{
+				Name:    "month",
+				Aliases: []string{"m"},
+				Usage:   "Months to sync. Can be provided multiple times or via comma-separated values.",
+			},
 		},
 	}
 }
@@ -58,24 +66,9 @@ func getPublishersUserInput(cmd *cli.Command) ([]string, error) {
 	raw := cmd.StringSlice("publisher")
 
 	if len(raw) > 0 {
-		publishers := make([]string, 0, len(raw))
-
-		for _, item := range raw {
-			parts := strings.Split(item, ",")
-
-			for _, p := range parts {
-				lp := strings.ToLower(strings.TrimSpace(p))
-
-				if !slices.Contains(allowedPublishers, lp) {
-					return nil, fmt.Errorf("invalid publisher specified: %s", p)
-				}
-
-				if slices.Contains(publishers, lp) {
-					return nil, fmt.Errorf("duplicate publisher specified: %s", p)
-				}
-
-				publishers = append(publishers, lp)
-			}
+		publishers, err := parseStringSliceFlag("publisher", raw, allowedPublishers)
+		if err != nil {
+			return nil, err
 		}
 
 		return publishers, nil
@@ -109,14 +102,20 @@ func getPublishersUserInput(cmd *cli.Command) ([]string, error) {
 }
 
 func getMonthsUserInput(cmd *cli.Command) ([]string, error) {
-	months := []time.Month{time.January, time.February, time.March, time.April, time.May, time.June, time.July,
-		time.August, time.September, time.October, time.November, time.December}
+	raw := cmd.StringSlice("month")
+
+	if len(raw) > 0 {
+		months, err := parseStringSliceFlag("month", raw, allowedMonths)
+		if err != nil {
+			return nil, err
+		}
+
+		return months, nil
+	}
 
 	monthOptions := slices.Collect(func(yield func(huh.Option[string]) bool) {
-		for _, month := range months {
-			s := month.String()
-
-			if !yield(huh.NewOption(s, strings.ToLower(s))) {
+		for _, month := range allowedMonths {
+			if !yield(huh.NewOption(month, strings.ToLower(month))) {
 				return
 			}
 		}
@@ -223,4 +222,28 @@ func newSyncReporter(metrics *models.AppMetrics, logger *slog.Logger) *syncRepor
 		metrics: metrics,
 		logger:  logger,
 	}
+}
+
+func parseStringSliceFlag(flagName string, input, allowedValues []string) ([]string, error) {
+	result := make([]string, 0, len(input))
+
+	for _, item := range input {
+		parts := strings.Split(item, ",")
+
+		for _, p := range parts {
+			lp := strings.ToLower(strings.TrimSpace(p))
+
+			if !slices.Contains(allowedValues, lp) {
+				return nil, fmt.Errorf("invalid %s specified: %s", flagName, p)
+			}
+
+			if slices.Contains(result, lp) {
+				return nil, fmt.Errorf("duplicate %s specified: %s", flagName, p)
+			}
+
+			result = append(result, lp)
+		}
+	}
+
+	return result, nil
 }
