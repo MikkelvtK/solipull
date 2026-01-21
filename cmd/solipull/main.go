@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	a := app.NewApplication([]string{"march", "february"}, []string{"dc", "marvel", "image"})
+	a := app.NewApplication()
 
 	cmd := cli.New(a.Serv, &models.AppMetrics{}, slog.Default())
 	if err := cmd.Run(context.Background(), os.Args); err != nil {

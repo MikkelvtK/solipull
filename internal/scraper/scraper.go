@@ -59,6 +59,28 @@ type comicReleasesScraper struct {
 	res      chan<- models.ComicBook
 }
 
+type SConfig struct {
+	Nav    *colly.Collector
+	Sol    *colly.Collector
+	Q      *queue.Queue
+	Ex     ComicBookExtractor
+	Logger *slog.Logger
+}
+
+func NewComicReleasesScraper(cfg *SConfig) (service.DataProvider, error) {
+	if cfg == nil {
+		return nil, errors.New("config is nil")
+	}
+
+	return &comicReleasesScraper{
+		navCol: cfg.Nav,
+		solCol: cfg.Sol,
+		queue:  cfg.Q,
+		ex:     cfg.Ex,
+		logger: cfg.Logger,
+	}, nil
+}
+
 func (s *comicReleasesScraper) GetData(ctx context.Context, url string, results chan<- models.ComicBook, obs service.ScrapingObserver) error {
 	s.ctx = ctx
 	s.res = results
@@ -86,6 +108,7 @@ func (s *comicReleasesScraper) GetData(ctx context.Context, url string, results 
 	}
 	s.solCol.Wait()
 
+	close(results)
 	return nil
 }
 
@@ -140,7 +163,7 @@ func (s *comicReleasesScraper) bindCallbacks(ctx context.Context) {
 	})
 
 	s.solCol.OnHTML("div.wp-block-columns", func(e *colly.HTMLElement) {
-		cb := s.parseComicBook(ctx, e)
+		cb := s.parseComicBook(ctx, wrapHtmlElement(e))
 		if s.res != nil {
 			s.res <- cb
 		}
@@ -155,13 +178,34 @@ func (s *comicReleasesScraper) bindCallbacks(ctx context.Context) {
 	})
 }
 
-func (s *comicReleasesScraper) parseComicBook(ctx context.Context, e *colly.HTMLElement) models.ComicBook {
+type htmlElementWrapper interface {
+	dom() *goquery.Selection
+	request() *colly.Request
+}
+
+type collyHtmlElement struct {
+	htmlElement *colly.HTMLElement
+}
+
+func (c *collyHtmlElement) dom() *goquery.Selection {
+	return c.htmlElement.DOM
+}
+
+func (c *collyHtmlElement) request() *colly.Request {
+	return c.htmlElement.Request
+}
+
+func wrapHtmlElement(e *colly.HTMLElement) htmlElementWrapper {
+	return &collyHtmlElement{htmlElement: e}
+}
+
+func (s *comicReleasesScraper) parseComicBook(ctx context.Context, e htmlElementWrapper) models.ComicBook {
 	var fullTitle string
 	cb := models.ComicBook{}
-	cb.Publisher = s.ex.Publisher(ctx, e.Request.URL.String(), s.observer)
-	cb.Format, _ = e.DOM.PrevAll().Filter("#singles, #trades, #hardcovers").First().Attr("id")
+	cb.Publisher = s.ex.Publisher(ctx, e.request().URL.String(), s.observer)
+	cb.Format, _ = e.dom().PrevAll().Filter("#singles, #trades, #hardcovers").First().Attr("id")
 
-	e.DOM.Children().Find("p").Each(func(i int, sel *goquery.Selection) {
+	e.dom().Children().Find("p").Each(func(i int, sel *goquery.Selection) {
 		switch i {
 		case 0:
 			fullTitle = sel.Text()
@@ -180,7 +224,7 @@ func (s *comicReleasesScraper) parseComicBook(ctx context.Context, e *colly.HTML
 		return cb
 	}
 
-	e.DOM.NextAllFiltered(":contains('ON-SALE'), :contains('FOC')").Each(func(_ int, p *goquery.Selection) {
+	e.dom().NextAllFiltered(":contains('ON-SALE'), :contains('FOC')").Each(func(_ int, p *goquery.Selection) {
 		p.Next().Find("li").Each(func(_ int, pe *goquery.Selection) {
 			if strings.EqualFold(normalizeTitle(pe.Text()), normalizeTitle(fullTitle)) {
 				if strings.Contains(pe.Text(), "ON SALE") {
@@ -203,22 +247,4 @@ func normalizeTitle(s string) string {
 	s = reBrackets.ReplaceAllString(s, "")
 	s = reAlphaNum.ReplaceAllString(s, "")
 	return strings.Join(strings.Fields(s), " ")
-}
-
-type SConfig struct {
-	Nav    *colly.Collector
-	Sol    *colly.Collector
-	Q      *queue.Queue
-	Ex     ComicBookExtractor
-	Logger *slog.Logger
-}
-
-func NewComicReleasesScraper(cfg *SConfig) service.DataProvider {
-	return &comicReleasesScraper{
-		navCol: cfg.Nav,
-		solCol: cfg.Sol,
-		queue:  cfg.Q,
-		ex:     cfg.Ex,
-		logger: cfg.Logger,
-	}
 }

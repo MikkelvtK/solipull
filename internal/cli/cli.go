@@ -47,7 +47,7 @@ func (c *CLI) Run(ctx context.Context, args []string) error {
 
 func (c *CLI) solicitations() *cli.Command {
 	return &cli.Command{
-		Name:  "solicitations",
+		Name:  "solicitation",
 		Usage: "Solicitation tool",
 		Commands: []*cli.Command{
 			c.sync(),

@@ -47,10 +47,10 @@ func (s *SolicitationService) Sync(ctx context.Context, observer ScrapingObserve
 		return err
 	}
 
+	wg.Add(1)
 	go s.bulkSave(ctx, results, errCh, wg)
 
 	err := s.scraper.GetData(ctx, url, results, observer)
-	close(results)
 	wg.Wait()
 
 	if err != nil {
@@ -66,10 +66,9 @@ func (s *SolicitationService) Sync(ctx context.Context, observer ScrapingObserve
 }
 
 func (s *SolicitationService) bulkSave(ctx context.Context, res <-chan models.ComicBook, errCh chan<- error, wg *sync.WaitGroup) {
-	wg.Add(1)
 	defer wg.Done()
 
-	cbs := make([]models.ComicBook, 100)
+	cbs := make([]models.ComicBook, 0, 100)
 
 	for cb := range res {
 		cbs = append(cbs, cb)
@@ -77,6 +76,7 @@ func (s *SolicitationService) bulkSave(ctx context.Context, res <-chan models.Co
 		if len(cbs) >= 100 {
 			if err := s.repo.BulkSave(ctx, cbs); err != nil {
 				errCh <- err
+				return
 			}
 
 			cbs = cbs[:0]

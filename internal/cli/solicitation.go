@@ -39,9 +39,7 @@ func (c *CLI) sync() *cli.Command {
 			}
 
 			rep := newSyncReporter(c.metrics, c.logger)
-
-			err = c.solService.Sync(ctx, rep, months, publishers)
-			if err != nil {
+			if err = c.solService.Sync(ctx, rep, months, publishers); err != nil {
 				return err
 			}
 
@@ -51,12 +49,12 @@ func (c *CLI) sync() *cli.Command {
 			&cli.StringSliceFlag{
 				Name:    "publisher",
 				Aliases: []string{"p"},
-				Usage:   "Publishers to sync. Can be provided multiple times or via comma-separated values.",
+				Usage:   "Publishers to sync",
 			},
 			&cli.StringSliceFlag{
 				Name:    "month",
 				Aliases: []string{"m"},
-				Usage:   "Months to sync. Can be provided multiple times or via comma-separated values.",
+				Usage:   "Months to sync",
 			},
 		},
 	}
@@ -225,6 +223,10 @@ func newSyncReporter(metrics *models.AppMetrics, logger *slog.Logger) *syncRepor
 }
 
 func parseStringSliceFlag(flagName string, input, allowedValues []string) ([]string, error) {
+	if len(input) == 0 {
+		return nil, fmt.Errorf("invalid %s input", flagName)
+	}
+
 	result := make([]string, 0, len(input))
 
 	for _, item := range input {

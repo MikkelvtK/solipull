@@ -17,7 +17,7 @@ type Application struct {
 	repo models.ComicBookRepository
 }
 
-func NewApplication(months, publishers []string) *Application {
+func NewApplication() *Application {
 	cfgDir, _ := os.UserConfigDir()
 
 	db := database.MustOpen(cfgDir+"/solipull/solipull.db", "sqlite")
@@ -40,7 +40,7 @@ func NewApplication(months, publishers []string) *Application {
 		Logger: slog.Default(),
 	}
 
-	s := scraper.NewComicReleasesScraper(&cfg)
+	s, _ := scraper.NewComicReleasesScraper(&cfg)
 
 	serv := service.NewSolicitationService(s, repo)
 

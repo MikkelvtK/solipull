@@ -1,6 +1,7 @@
 package scraper
 
 import (
+	"context"
 	"github.com/MikkelvtK/solipull/internal/models"
 	"log/slog"
 	"reflect"
@@ -8,6 +9,10 @@ import (
 	"testing"
 	"time"
 )
+
+type observer struct{}
+
+func (o observer) OnError(ctx context.Context, level slog.Level, msg string, args ...any) {}
 
 type MockNode struct {
 	text string
@@ -39,12 +44,13 @@ func TestNewComicReleasesExtractor(t *testing.T) {
 				rePrice:       regexp.MustCompile(`\$(\d+\.\d{2})`),
 				reReleaseDate: regexp.MustCompile(`(?i)(\d{1,2}/\d{1,2}/\d{2,4})`),
 				creatorParser: newCreatorParser([]string{"writer", "artist", "cover artist"}),
+				logger:        slog.Default(),
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := NewComicReleasesExtractor([]string{"march"}, []string{"dc"}, slog.Default(), &models.RunStats{}); !reflect.DeepEqual(got, tt.want) {
+			if got := NewComicReleasesExtractor(slog.Default()); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("NewComicReleasesExtractor() = %v, want %v", got, tt.want)
 			}
 		})
@@ -265,7 +271,7 @@ func Test_comicReleasesExtractor_Pages(t *testing.T) {
 			c := &comicReleasesExtractor{
 				rePages: tt.fields.rePages,
 			}
-			if got := c.Pages(tt.args.s); got != tt.want {
+			if got := c.Pages(context.Background(), tt.args.s, observer{}); got != tt.want {
 				t.Errorf("Pages() = %v, want %v", got, tt.want)
 			}
 		})
@@ -321,7 +327,7 @@ func Test_comicReleasesExtractor_Price(t *testing.T) {
 			c := &comicReleasesExtractor{
 				rePrice: tt.fields.rePrice,
 			}
-			if got := c.Price(tt.args.s); got != tt.want {
+			if got := c.Price(context.Background(), tt.args.s, observer{}); got != tt.want {
 				t.Errorf("Price() = %v, want %v", got, tt.want)
 			}
 		})
@@ -407,7 +413,7 @@ func Test_comicReleasesExtractor_Publisher(t *testing.T) {
 			c := &comicReleasesExtractor{
 				rePublisher: tt.fields.rePublisher,
 			}
-			if got := c.Publisher(tt.args.s); got != tt.want {
+			if got := c.Publisher(context.Background(), tt.args.s, observer{}); got != tt.want {
 				t.Errorf("Publisher() = %v, want %v", got, tt.want)
 			}
 		})
@@ -483,7 +489,7 @@ func Test_comicReleasesExtractor_ReleaseDate(t *testing.T) {
 			c := &comicReleasesExtractor{
 				reReleaseDate: tt.fields.reReleaseDate,
 			}
-			if got := c.ReleaseDate(tt.args.s); !reflect.DeepEqual(got, tt.want) {
+			if got := c.ReleaseDate(context.Background(), tt.args.s, observer{}); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("ReleaseDate() = %v, want %v", got, tt.want)
 			}
 		})
@@ -531,7 +537,7 @@ func Test_comicReleasesExtractor_Title(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &comicReleasesExtractor{}
-			if got := c.Title(tt.args.s); got != tt.want {
+			if got := c.Title(context.Background(), tt.args.s, observer{}); got != tt.want {
 				t.Errorf("Title() = %v, want %v", got, tt.want)
 			}
 		})
@@ -566,6 +572,140 @@ func Test_newCreatorParser(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := newCreatorParser(tt.args.roles); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("newCreatorParser() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_comicReleasesExtractor_SetUrlMatcher(t *testing.T) {
+	type args struct {
+		months     []string
+		publishers []string
+	}
+	tests := []struct {
+		name string
+		args args
+	}{
+		{
+			name: "nil == no errors",
+			args: args{
+				months:     nil,
+				publishers: nil,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &comicReleasesExtractor{}
+			c.SetUrlMatcher(tt.args.months, tt.args.publishers)
+		})
+	}
+}
+
+func Test_comicReleasesExtractor_MatchURL(t *testing.T) {
+	type fields struct {
+		reUrl *regexp.Regexp
+	}
+	type args struct {
+		ctx      context.Context
+		url      string
+		observer models.ErrorObserver
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		want   bool
+		panic  bool
+	}{
+		{
+			name:   "nil == no errors",
+			fields: fields{},
+			args: args{
+				ctx:      nil,
+				url:      "",
+				observer: nil,
+			},
+			want:  false,
+			panic: true,
+		},
+		{
+			name: "default test case",
+			fields: fields{
+				reUrl: regexp.MustCompile("(?i)(dc)-(january|february|march)-(2026|2027)-solicitations"),
+			},
+			args: args{
+				ctx:      context.Background(),
+				url:      "https://www.comicreleases.com/2025/12/dc-march-2026-solicitations/",
+				observer: observer{},
+			},
+			want:  true,
+			panic: false,
+		},
+		{
+			name: "regex is nil",
+			fields: fields{
+				reUrl: nil,
+			},
+			args: args{
+				ctx:      context.Background(),
+				url:      "https://www.comicreleases.com/2025/12/dc-march-2026-solicitations/",
+				observer: observer{},
+			},
+			want:  false,
+			panic: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &comicReleasesExtractor{
+				reUrl: tt.fields.reUrl,
+			}
+
+			defer func() {
+				if r := recover(); tt.panic && r == nil {
+					t.Errorf("The code did not panic")
+				}
+			}()
+
+			if got := c.MatchURL(tt.args.ctx, tt.args.url, tt.args.observer); got != tt.want {
+				t.Errorf("MatchURL() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_generateUrlRegex(t *testing.T) {
+	type args struct {
+		months     []string
+		publishers []string
+	}
+	tests := []struct {
+		name string
+		args args
+		want string
+	}{
+		{
+			name: "nil == no errors",
+			args: args{
+				months:     nil,
+				publishers: nil,
+			},
+			want: "",
+		},
+		{
+			name: "default test case",
+			args: args{
+				months:     []string{"january", "february"},
+				publishers: []string{"dc"},
+			},
+			want: "(?i)(dc)-(january|february)-(2026|2027)-solicitations",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := generateUrlRegex(tt.args.months, tt.args.publishers); got != tt.want {
+				t.Errorf("generateUrlRegex() = %v, want %v", got, tt.want)
 			}
 		})
 	}

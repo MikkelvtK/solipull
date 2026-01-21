@@ -50,6 +50,10 @@ func (c *comicReleasesExtractor) SetUrlMatcher(months, publishers []string) {
 }
 
 func (c *comicReleasesExtractor) MatchURL(ctx context.Context, url string, observer models.ErrorObserver) bool {
+	if observer == nil {
+		panic("nil observer")
+	}
+
 	if c.reUrl == nil {
 		observer.OnError(ctx, slog.LevelWarn, "url regex compilation failed")
 		return false
@@ -204,6 +208,10 @@ func (c *creatorParser) parse(n HTMLNode) []models.Creator {
 }
 
 func generateUrlRegex(months []string, publishers []string) string {
+	if len(publishers) == 0 || len(months) == 0 {
+		return ""
+	}
+
 	m := strings.Join(months, "|")
 	p := strings.Join(publishers, "|")
 	y := time.Now().Year()
