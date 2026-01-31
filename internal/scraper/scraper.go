@@ -163,7 +163,7 @@ func (s *comicReleasesScraper) bindCallbacks(ctx context.Context) {
 	})
 
 	s.solCol.OnHTML("div.wp-block-columns", func(e *colly.HTMLElement) {
-		cb := s.parseComicBook(ctx, wrapHtmlElement(e))
+		cb := s.parseComicBook(ctx, e)
 		if s.res != nil {
 			s.res <- cb
 		}
@@ -178,34 +178,13 @@ func (s *comicReleasesScraper) bindCallbacks(ctx context.Context) {
 	})
 }
 
-type htmlElementWrapper interface {
-	dom() *goquery.Selection
-	request() *colly.Request
-}
-
-type collyHtmlElement struct {
-	htmlElement *colly.HTMLElement
-}
-
-func (c *collyHtmlElement) dom() *goquery.Selection {
-	return c.htmlElement.DOM
-}
-
-func (c *collyHtmlElement) request() *colly.Request {
-	return c.htmlElement.Request
-}
-
-func wrapHtmlElement(e *colly.HTMLElement) htmlElementWrapper {
-	return &collyHtmlElement{htmlElement: e}
-}
-
-func (s *comicReleasesScraper) parseComicBook(ctx context.Context, e htmlElementWrapper) models.ComicBook {
+func (s *comicReleasesScraper) parseComicBook(ctx context.Context, e *colly.HTMLElement) models.ComicBook {
 	var fullTitle string
 	cb := models.ComicBook{}
-	cb.Publisher = s.ex.Publisher(ctx, e.request().URL.String(), s.observer)
-	cb.Format, _ = e.dom().PrevAll().Filter("#singles, #trades, #hardcovers").First().Attr("id")
+	cb.Publisher = s.ex.Publisher(ctx, e.Request.URL.String(), s.observer)
+	cb.Format, _ = e.DOM.PrevAll().Filter("#singles, #trades, #hardcovers").First().Attr("id")
 
-	e.dom().Children().Find("p").Each(func(i int, sel *goquery.Selection) {
+	e.DOM.Children().Find("p").Each(func(i int, sel *goquery.Selection) {
 		switch i {
 		case 0:
 			fullTitle = sel.Text()
@@ -224,7 +203,7 @@ func (s *comicReleasesScraper) parseComicBook(ctx context.Context, e htmlElement
 		return cb
 	}
 
-	e.dom().NextAllFiltered(":contains('ON-SALE'), :contains('FOC')").Each(func(_ int, p *goquery.Selection) {
+	e.DOM.NextAllFiltered(":contains('ON-SALE'), :contains('FOC')").Each(func(_ int, p *goquery.Selection) {
 		p.Next().Find("li").Each(func(_ int, pe *goquery.Selection) {
 			if strings.EqualFold(normalizeTitle(pe.Text()), normalizeTitle(fullTitle)) {
 				if strings.Contains(pe.Text(), "ON SALE") {
