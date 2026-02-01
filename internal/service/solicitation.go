@@ -65,6 +65,11 @@ func (s *SolicitationService) Sync(ctx context.Context, observer ScrapingObserve
 	}
 }
 
+func (s *SolicitationService) View(ctx context.Context, months, publishers []string) ([]models.ComicBook, error) {
+	// TODO: implement to get comic books by months and publishers
+	return s.repo.GetAll(ctx)
+}
+
 func (s *SolicitationService) bulkSave(ctx context.Context, res <-chan models.ComicBook, errCh chan<- error, wg *sync.WaitGroup) {
 	defer wg.Done()
 

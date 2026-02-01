@@ -48,7 +48,7 @@ func (c *ComicBookRepository) GetById(ctx context.Context, id int) (*models.Comi
 	if err != nil {
 		return nil, err
 	}
-	stmt := `SELECT title, issue FROM comic_books WHERE id = ?;`
+	stmt := `SELECT * FROM comic_books WHERE id = ?;`
 
 	row := tx.QueryRowContext(ctx, stmt, id)
 	cb := &models.ComicBook{}
@@ -57,4 +57,36 @@ func (c *ComicBookRepository) GetById(ctx context.Context, id int) (*models.Comi
 	}
 
 	return cb, nil
+}
+
+func (c *ComicBookRepository) GetAll(ctx context.Context) ([]models.ComicBook, error) {
+	tx, err := c.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	stmt := `SELECT * FROM comic_books WHERE 1;`
+	rows, err := tx.QueryContext(ctx, stmt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var cbs []models.ComicBook
+
+	for rows.Next() {
+		var cb models.ComicBook
+		err := rows.Scan(&cb.Id, &cb.Title, &cb.Issue, &cb.Pages, &cb.Format, &cb.Price, &cb.Publisher, &cb.ReleaseDate)
+		if err != nil {
+			return nil, err
+		}
+
+		cbs = append(cbs, cb)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return cbs, nil
 }

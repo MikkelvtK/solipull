@@ -22,7 +22,7 @@ import (
 var location = `
 ?xml version="1.0" encoding="UTF-8"?>
 <?xml-stylesheet type="text/xsl"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9 http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
+<urlset>
     <url>
         <loc>%s/dc-march-2026-solicitations/</loc>
         <lastmod>2025-12-19T18:47:21+00:00</lastmod>

@@ -60,6 +60,42 @@ func (c *CLI) sync() *cli.Command {
 	}
 }
 
+func (c *CLI) view() *cli.Command {
+	return &cli.Command{
+		Name:  "view",
+		Usage: "View and export comic book solicitations.",
+		Description: "Displays solicitation data in a formatted and interactive table by default. Supports JSON and " +
+			"CSV exports via flags for use in scripts and external tools.",
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			return nil
+		},
+		Flags: []cli.Flag{
+			&cli.StringSliceFlag{
+				Name:    "publisher",
+				Aliases: []string{"p"},
+				Usage:   "Publishers to view",
+			},
+			&cli.StringSliceFlag{
+				Name:    "month",
+				Aliases: []string{"m"},
+				Usage:   "Months to view",
+			},
+			&cli.BoolFlag{
+				Name:  "json",
+				Usage: "Output as JSON",
+			},
+			&cli.BoolFlag{
+				Name:  "csv",
+				Usage: "Output as CSV",
+			},
+			&cli.BoolFlag{
+				Name:  "no-header",
+				Usage: "Removes header names from output",
+			},
+		},
+	}
+}
+
 func getPublishersUserInput(cmd *cli.Command) ([]string, error) {
 	raw := cmd.StringSlice("publisher")
 

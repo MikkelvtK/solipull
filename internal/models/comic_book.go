@@ -8,6 +8,7 @@ import (
 type ComicBookRepository interface {
 	BulkSave(ctx context.Context, records []ComicBook) error
 	GetById(ctx context.Context, id int) (*ComicBook, error)
+	GetAll(ctx context.Context) ([]ComicBook, error)
 }
 
 type ComicBook struct {

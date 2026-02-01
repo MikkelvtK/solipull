@@ -51,6 +51,7 @@ func (c *CLI) solicitations() *cli.Command {
 		Usage: "Solicitation tool",
 		Commands: []*cli.Command{
 			c.sync(),
+			c.view(),
 		},
 	}
 }
