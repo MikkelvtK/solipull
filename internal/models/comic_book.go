@@ -21,4 +21,5 @@ type ComicBook struct {
 	Creators    []Creator
 	Publisher   string
 	ReleaseDate time.Time
+	CreatedAt   time.Time
 }

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/MikkelvtK/solipull/internal/models"
+	"github.com/charmbracelet/bubbles/table"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
 	"github.com/schollz/progressbar/v3"
 	"github.com/urfave/cli/v3"
@@ -67,6 +69,16 @@ func (c *CLI) view() *cli.Command {
 		Description: "Displays solicitation data in a formatted and interactive table by default. Supports JSON and " +
 			"CSV exports via flags for use in scripts and external tools.",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
+
+			cbs, err := c.solService.View(ctx, []string{}, []string{})
+			if err != nil {
+				return err
+			}
+
+			m := newTableModel(cbs)
+			if _, err := tea.NewProgram(m).Run(); err != nil {
+				return err
+			}
 			return nil
 		},
 		Flags: []cli.Flag{
@@ -256,6 +268,36 @@ func newSyncReporter(metrics *models.AppMetrics, logger *slog.Logger) *syncRepor
 		metrics: metrics,
 		logger:  logger,
 	}
+}
+
+type tableModel struct {
+	table table.Model
+}
+
+func (t tableModel) Init() tea.Cmd {
+	return nil
+}
+
+func (t tableModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "q":
+			return t, tea.Quit
+		}
+	}
+
+	t.table, cmd = t.table.Update(msg)
+	return t, cmd
+}
+
+func (t tableModel) View() string {
+	return t.table.View()
+}
+
+func newTableModel(cbs []models.ComicBook) *tableModel {
+	return &tableModel{}
 }
 
 func parseStringSliceFlag(flagName string, input, allowedValues []string) ([]string, error) {

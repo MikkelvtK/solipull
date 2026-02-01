@@ -76,7 +76,7 @@ func (c *ComicBookRepository) GetAll(ctx context.Context) ([]models.ComicBook, e
 
 	for rows.Next() {
 		var cb models.ComicBook
-		err := rows.Scan(&cb.Id, &cb.Title, &cb.Issue, &cb.Pages, &cb.Format, &cb.Price, &cb.Publisher, &cb.ReleaseDate)
+		err := rows.Scan(&cb.Id, &cb.Title, &cb.Issue, &cb.Pages, &cb.Format, &cb.Price, &cb.Publisher, &cb.ReleaseDate, &cb.CreatedAt)
 		if err != nil {
 			return nil, err
 		}
