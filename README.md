@@ -9,9 +9,9 @@
 
 ## ✨ Current Features
 
-- **Automated Sync**: Scrapes publisher sitemaps and solicitation pages with regex-based precision using [Colly](https://github.com/gocolly/colly).
+- **Automated Sync**: Scrapes the [Comic Releases](https://www.comicreleases.com) sitemap and solicitation pages with regex-based precision using [Colly](https://github.com/gocolly/colly).
 - **Interactive TUI**: A searchable, fuzzy-filtered list powered by [Bubble Tea](https://github.com/charmbracelet/bubbletea).
-- **Smart Persistence**: Robust [SQLite](https://sqlite.org) backend using **Upsert** logic to handle release date changes without creating duplicate entries.
+- **Smart Persistence**: Robust [SQLite](https://sqlite.org) backend using **Upsert** logic to handle creating no duplicate entries.
 - **Modern Architecture**: Built on **Clean Architecture** principles with a central dependency injection container.
 
 ## 🗺️ Roadmap
@@ -38,16 +38,16 @@ go run cmd/solipull/main.go --help
 
 ## 🏗 Architecture
 
-Solipull follows **Clean Architecture** principles to ensure the core logic remains independent of the UI and database:
+Solipull follows below architecture design to ensure the different logic and infratstructure are clearly defined and separated:
 
 - **`cmd/`**: The "Glue" layer. Contains the application entry point and manages the dependency graph via a central **Container**.
 - **`internal/cli/`**: The "Transport" layer. Handles user interaction, command routing ([urfave/cli/v3](https://cli.urfave.org)), and the [Bubble Tea](https://github.com/charmbracelet/bubbletea) TUI.
 - **`internal/service/`**: The "Orchestration" layer. Defines domain use cases and manages the producer-consumer flow between the scraper and the repository.
-- **`internal/scraper/`**: The "Ingestion" layer. Contains thread-safe [Colly](https://github.com/gocolly/colly) collectors and regex-based extraction logic.
+- **`internal/scraper/`**: The "Ingestion" layer. Contains [Colly](https://github.com/gocolly/colly) collectors and regex-based extraction logic.
 - **`internal/database/`**: The "Storage" layer. Implements the Repository pattern with DTO mapping to keep business models uncoupled from SQLite structures.
 
 ## 🛡 License
 
-Distributed under the **MIT License**.
+Distributed under the **Apache 2.0 License**.
 
 Copyright (c) 2026 MikkelvtK
