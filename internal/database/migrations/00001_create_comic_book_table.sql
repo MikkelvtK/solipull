@@ -1,7 +1,7 @@
 -- +goose Up
 -- +goose StatementBegin
 CREATE TABLE IF NOT EXISTS comic_books (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
     issue TEXT,
     pages TEXT,
@@ -13,17 +13,18 @@ CREATE TABLE IF NOT EXISTS comic_books (
 );
 
 CREATE TABLE IF NOT EXISTS creators (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    comic_book_id INTEGER NOT NULL,
+    id TEXT PRIMARY KEY,
+    comic_book_id TEXT NOT NULL,
     role TEXT NOT NULL,
     name TEXT NOT NULL,
+    created_at DATETIME,
     FOREIGN KEY (comic_book_id) REFERENCES comic_books(id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_comics_publisher ON comic_books(publisher);
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_comics_unique
-    ON comic_books(title, issue, publisher);
+    ON comic_books(title, issue, publisher, release_date);
 
 -- +goose StatementEnd
 
