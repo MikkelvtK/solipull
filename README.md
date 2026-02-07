@@ -1,0 +1,53 @@
+# 🚀 Solipull
+
+**Solipull** is a high-performance CLI tool designed for comic book enthusiasts to synchronize, browse, and manage comic book solicitations directly from the terminal.
+
+> [!WARNING]  
+> **Status: Work in Progress.** This tool is currently in active development. Basic features like background logging and collection management are currently being implemented.
+
+---
+
+## ✨ Current Features
+
+- **Automated Sync**: Scrapes publisher sitemaps and solicitation pages with regex-based precision using [Colly](https://github.com).
+- **Interactive TUI**: A searchable, fuzzy-filtered list powered by [Bubble Tea](https://github.com).
+- **Smart Persistence**: Robust [SQLite](https://sqlite.org) backend using **Upsert** logic to handle release date changes without creating duplicate entries.
+- **Modern Architecture**: Built on **Clean Architecture** principles with a central dependency injection container.
+
+## 🗺️ Roadmap
+
+- [ ] **Structured Logging**: Implementation of `slog` JSON logging for background diagnostics.
+- [ ] **Pull List Management**: Ability to "subscribe" to titles and track personal collections.
+- [ ] **Export Formats**: Support for CSV and JSON data exports.
+- [ ] **Homebrew Support**: Automated distribution via GoReleaser.
+
+---
+
+## 🛠 Installation (Development)
+
+Requires Go 1.23+
+
+```bash
+# Clone the repository
+git clone ://github.com
+cd solipull
+
+# Run directly
+go run cmd/solipull/main.go sync
+```
+
+## 🏗 Architecture
+
+Solipull follows **Clean Architecture** principles to ensure the core logic remains independent of the UI and database:
+
+- **`cmd/`**: The "Glue" layer. Contains the application entry point and manages the dependency graph via a central **Container**.
+- **`internal/cli/`**: The "Transport" layer. Handles user interaction, command routing ([urfave/cli/v3](https://cli.urfave.org)), and the [Bubble Tea](https://github.com) TUI.
+- **`internal/service/`**: The "Orchestration" layer. Defines domain use cases and manages the producer-consumer flow between the scraper and the repository.
+- **`internal/scraper/`**: The "Ingestion" layer. Contains thread-safe [Colly](https://github.com) collectors and regex-based extraction logic.
+- **`internal/database/`**: The "Storage" layer. Implements the Repository pattern with DTO mapping to keep business models uncoupled from SQLite structures.
+
+## 🛡 License
+
+Distributed under the **MIT License**.
+
+Copyright (c) 2026 MikkelvtK

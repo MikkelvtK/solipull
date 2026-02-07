@@ -71,8 +71,15 @@ func (i comicItem) Title() string {
 func (i comicItem) Description() string {
 	pub := strings.ToUpper(i.cb.Publisher)
 	dt := i.cb.ReleaseDate.Format("Jan 02")
+	names := slices.Collect(func(yield func(string) bool) {
+		for _, v := range i.cb.Creators {
+			if !yield(v.Name) {
+				return
+			}
+		}
+	})
 
-	return fmt.Sprintf("[%s] | %s | %s", pub, dt, i.cb.Price)
+	return fmt.Sprintf("[%s] | %s | %s (%s)", pub, dt, i.cb.Price, strings.Join(names, ", "))
 }
 
 func (i comicItem) FilterValue() string {
