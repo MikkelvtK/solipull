@@ -49,5 +49,3 @@ Solipull follows below architecture design to ensure the different logic and inf
 ## 🛡 License
 
 Distributed under the **Apache 2.0 License**.
-
-Copyright (c) 2026 MikkelvtK
