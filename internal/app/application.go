@@ -1,7 +1,6 @@
 package app
 
 import (
-	"fmt"
 	"github.com/MikkelvtK/solipull/internal/database"
 	"github.com/MikkelvtK/solipull/internal/database/sqlite"
 	"github.com/MikkelvtK/solipull/internal/models"
@@ -22,7 +21,6 @@ func NewApplication() *Application {
 	cfgDir, _ := os.UserConfigDir()
 
 	db := database.MustOpen(cfgDir+"/solipull/solipull.db", "sqlite")
-	fmt.Println(cfgDir)
 	repo := sqlite.NewComicBookRepository(db)
 
 	e := scraper.NewComicReleasesExtractor(slog.Default())
