@@ -62,13 +62,17 @@ func (s *syncReporter) OnError(ctx context.Context, level slog.Level, msg string
 	//s.logger.Log(ctx, level, msg, args)
 }
 
+func (s *syncReporter) OnStart() {
+	fmt.Println("➔ Finding solicitation pages to scrape...")
+}
+
 func (s *syncReporter) OnUrlFound(n int) {
 	s.metrics.PagesFound.Add(int32(n))
 }
 
 func (s *syncReporter) OnNavigationComplete() {
 	if s.metrics.PagesFound.Load() == 0 {
-		s.OnError(nil, slog.LevelError, "no pages found")
+		fmt.Println("✗ No pages found")
 		return
 	}
 
@@ -109,6 +113,7 @@ func (s *syncReporter) reportResults() error {
 }
 
 func (s *syncReporter) OnComicBookScraped(n int) {
+
 	s.metrics.ComicBooksFound.Add(int32(n))
 }
 
@@ -124,8 +129,6 @@ func (s *syncReporter) OnScrapingComplete() {
 }
 
 func newSyncReporter(metrics *models.AppMetrics, logger *slog.Logger) *syncReporter {
-	fmt.Println("➔ Finding solicitation pages to scrape...")
-
 	return &syncReporter{
 		metrics: metrics,
 		logger:  logger,

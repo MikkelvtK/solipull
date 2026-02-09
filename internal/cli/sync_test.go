@@ -1,14 +1,40 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"github.com/MikkelvtK/solipull/internal/models"
 	"github.com/schollz/progressbar/v3"
 	"github.com/urfave/cli/v3"
+	"io"
 	"log/slog"
+	"os"
 	"reflect"
+	"strings"
 	"testing"
 )
+
+func captureStdout(f func(), t *testing.T) string {
+	t.Helper()
+
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	f()
+
+	if err := w.Close(); err != nil {
+		t.Errorf("Error closing stdout: %v", err)
+	}
+
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Errorf("Error reading stdout: %v", err)
+	}
+
+	os.Stdout = oldStdout
+	return buf.String()
+}
 
 func TestCLI_sync(t *testing.T) {
 	tests := []struct {
@@ -40,7 +66,38 @@ func Test_newSyncReporter(t *testing.T) {
 		args args
 		want *syncReporter
 	}{
-		// TODO: Add test cases.
+		{
+			name: "accepts nil parameters",
+			args: args{
+				metrics: nil,
+				logger:  nil,
+			},
+			want: &syncReporter{},
+		},
+		{
+			name: "accepts AppMetrics",
+			args: args{
+				metrics: &models.AppMetrics{},
+				logger:  nil,
+			},
+			want: &syncReporter{metrics: &models.AppMetrics{}},
+		},
+		{
+			name: "accepts Logger",
+			args: args{
+				metrics: nil,
+				logger:  &slog.Logger{},
+			},
+			want: &syncReporter{logger: &slog.Logger{}},
+		},
+		{
+			name: "accepts both",
+			args: args{
+				metrics: &models.AppMetrics{},
+				logger:  &slog.Logger{},
+			},
+			want: &syncReporter{metrics: &models.AppMetrics{}, logger: &slog.Logger{}},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -53,35 +110,69 @@ func Test_newSyncReporter(t *testing.T) {
 
 func Test_syncReporter_OnComicBookScraped(t *testing.T) {
 	type fields struct {
-		pb      *progressbar.ProgressBar
 		metrics *models.AppMetrics
-		logger  *slog.Logger
 	}
 	type args struct {
 		n int
 	}
 	tests := []struct {
-		name   string
-		fields fields
-		args   args
+		name     string
+		fields   fields
+		args     args
+		numCalls int
+		want     int
 	}{
-		// TODO: Add test cases.
+		{
+			name: "default test case",
+			fields: fields{
+				metrics: &models.AppMetrics{},
+			},
+			args: args{
+				n: 1,
+			},
+			numCalls: 1,
+			want:     1,
+		},
+		{
+			name: "persists calls",
+			fields: fields{
+				metrics: &models.AppMetrics{},
+			},
+			args: args{
+				n: 1,
+			},
+			numCalls: 5,
+			want:     5,
+		},
+		{
+			name: "accepts bigger numbers",
+			fields: fields{
+				metrics: &models.AppMetrics{},
+			},
+			args: args{
+				n: 101,
+			},
+			numCalls: 5,
+			want:     505,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &syncReporter{
-				pb:      tt.fields.pb,
 				metrics: tt.fields.metrics,
-				logger:  tt.fields.logger,
 			}
-			s.OnComicBookScraped(tt.args.n)
+			for i := 0; i < tt.numCalls; i++ {
+				s.OnComicBookScraped(tt.args.n)
+			}
+			if int(s.metrics.ComicBooksFound.Load()) != tt.want {
+				t.Errorf("OnComicBookScraped got = %v, want = %v", s.metrics.ComicBooksFound.Load(), tt.want)
+			}
 		})
 	}
 }
 
 func Test_syncReporter_OnError(t *testing.T) {
 	type fields struct {
-		pb      *progressbar.ProgressBar
 		metrics *models.AppMetrics
 		logger  *slog.Logger
 	}
@@ -96,12 +187,23 @@ func Test_syncReporter_OnError(t *testing.T) {
 		fields fields
 		args   args
 	}{
-		// TODO: Add test cases.
+		{
+			name: "default test case",
+			fields: fields{
+				metrics: &models.AppMetrics{},
+				logger:  nil,
+			},
+			args: args{
+				ctx:   context.Background(),
+				level: slog.LevelInfo,
+				msg:   "test",
+				args:  []any{"test"},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &syncReporter{
-				pb:      tt.fields.pb,
 				metrics: tt.fields.metrics,
 				logger:  tt.fields.logger,
 			}
@@ -112,24 +214,48 @@ func Test_syncReporter_OnError(t *testing.T) {
 
 func Test_syncReporter_OnNavigationComplete(t *testing.T) {
 	type fields struct {
-		pb      *progressbar.ProgressBar
 		metrics *models.AppMetrics
-		logger  *slog.Logger
 	}
 	tests := []struct {
 		name   string
 		fields fields
+		want   string
+		wantPb bool
 	}{
-		// TODO: Add test cases.
+		{
+			name: "no pages found",
+			fields: fields{
+				metrics: &models.AppMetrics{},
+			},
+			want:   "No pages found",
+			wantPb: false,
+		},
+		{
+			name: "pages found",
+			fields: fields{
+				metrics: func() *models.AppMetrics {
+					m := &models.AppMetrics{}
+					m.PagesFound.Add(5)
+					return m
+				}(),
+			},
+			want:   "✔ Found: 5 pages to scrape",
+			wantPb: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &syncReporter{
-				pb:      tt.fields.pb,
 				metrics: tt.fields.metrics,
-				logger:  tt.fields.logger,
 			}
-			s.OnNavigationComplete()
+			output := captureStdout(s.OnNavigationComplete, t)
+			if !strings.Contains(output, tt.want) {
+				t.Errorf("OnNavigationComplete got = %v, want = %v", output, tt.want)
+				return
+			}
+			if tt.wantPb && s.pb == nil {
+				t.Errorf("OnNavigationComplete wantPb = %v got %v", tt.wantPb, s.pb)
+			}
 		})
 	}
 }
@@ -138,20 +264,37 @@ func Test_syncReporter_OnScrapingComplete(t *testing.T) {
 	type fields struct {
 		pb      *progressbar.ProgressBar
 		metrics *models.AppMetrics
-		logger  *slog.Logger
 	}
 	tests := []struct {
 		name   string
 		fields fields
 	}{
-		// TODO: Add test cases.
+		{
+			name: "default test case",
+			fields: fields{
+				pb: progressbar.NewOptions(5, progressbar.OptionSetVisibility(false)),
+			},
+		},
+		{
+			name: "pb is nil",
+			fields: fields{
+				pb:      nil,
+				metrics: &models.AppMetrics{},
+			},
+		},
+		{
+			name: "error pb",
+			fields: fields{
+				pb: progressbar.NewOptions(0,
+					progressbar.OptionSetVisibility(false)),
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &syncReporter{
 				pb:      tt.fields.pb,
 				metrics: tt.fields.metrics,
-				logger:  tt.fields.logger,
 			}
 			s.OnScrapingComplete()
 		})
@@ -160,9 +303,7 @@ func Test_syncReporter_OnScrapingComplete(t *testing.T) {
 
 func Test_syncReporter_OnUrlFound(t *testing.T) {
 	type fields struct {
-		pb      *progressbar.ProgressBar
 		metrics *models.AppMetrics
-		logger  *slog.Logger
 	}
 	type args struct {
 		n int
@@ -172,14 +313,20 @@ func Test_syncReporter_OnUrlFound(t *testing.T) {
 		fields fields
 		args   args
 	}{
-		// TODO: Add test cases.
+		{
+			name: "default test case",
+			fields: fields{
+				metrics: &models.AppMetrics{},
+			},
+			args: args{
+				n: 5,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &syncReporter{
-				pb:      tt.fields.pb,
 				metrics: tt.fields.metrics,
-				logger:  tt.fields.logger,
 			}
 			s.OnUrlFound(tt.args.n)
 		})
@@ -190,21 +337,26 @@ func Test_syncReporter_reportResults(t *testing.T) {
 	type fields struct {
 		pb      *progressbar.ProgressBar
 		metrics *models.AppMetrics
-		logger  *slog.Logger
 	}
 	tests := []struct {
 		name    string
 		fields  fields
 		wantErr bool
 	}{
-		// TODO: Add test cases.
+		{
+			name: "default test case",
+			fields: fields{
+				pb:      progressbar.NewOptions(5, progressbar.OptionSetVisibility(false)),
+				metrics: &models.AppMetrics{},
+			},
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &syncReporter{
 				pb:      tt.fields.pb,
 				metrics: tt.fields.metrics,
-				logger:  tt.fields.logger,
 			}
 			if err := s.reportResults(); (err != nil) != tt.wantErr {
 				t.Errorf("reportResults() error = %v, wantErr %v", err, tt.wantErr)

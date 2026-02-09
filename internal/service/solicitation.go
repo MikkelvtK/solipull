@@ -17,6 +17,7 @@ type DataProvider interface {
 
 type ScrapingObserver interface {
 	models.ErrorObserver
+	OnStart()
 	OnUrlFound(n int)
 	OnNavigationComplete()
 	OnComicBookScraped(n int)

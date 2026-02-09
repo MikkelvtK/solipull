@@ -94,6 +94,8 @@ func (s *comicReleasesScraper) GetData(ctx context.Context, url string, results 
 		s.observer = nil
 	}()
 
+	s.observer.OnStart()
+
 	if err := s.navCol.Visit(url); err != nil {
 		return err
 	}

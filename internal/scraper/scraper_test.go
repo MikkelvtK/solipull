@@ -166,6 +166,10 @@ func (m *mockObserver) OnError(ctx context.Context, level slog.Level, msg string
 	m.Called(ctx, level, msg, args)
 }
 
+func (m *mockObserver) OnStart() {
+	m.Called()
+}
+
 func (m *mockObserver) OnUrlFound(n int) {
 	m.Called(n)
 }
@@ -398,6 +402,7 @@ func Test_comicReleasesScraper_GetDataStarts(t *testing.T) {
 	obs := &mockObserver{}
 
 	obs.On("OnNavigationComplete").Once()
+	obs.On("OnStart").Once()
 
 	err := scraper.GetData(ctx, ts.URL, results, obs)
 
@@ -418,6 +423,7 @@ func Test_comicReleasesScraper_GetDataAbortsWhenCancelledContext(t *testing.T) {
 	cancel()
 
 	obs.On("OnNavigationComplete").Once()
+	obs.On("OnStart").Once()
 
 	err := scraper.GetData(ctx, ts.URL, results, obs)
 
@@ -441,6 +447,7 @@ func Test_comicReleasesScraper_GetDataHandlesRequestError(t *testing.T) {
 	input := []interface{}{"url", ts.URL + "/", "status", "500", "error", "Internal Server Error"}
 
 	obs.On("OnError", ctx, slog.LevelError, "request failed", input).Once()
+	obs.On("OnStart").Once()
 
 	if err := scraper.GetData(ctx, ts.URL, results, obs); err == nil {
 		t.Errorf("expected error, got nil")
@@ -473,6 +480,7 @@ func Test_comicReleasesScraper_GetDataScrapesComicBook(t *testing.T) {
 	obs.On("OnNavigationComplete").Once()
 	obs.On("OnComicBookScraped", 1).Once()
 	obs.On("OnScrapingComplete").Once()
+	obs.On("OnStart").Once()
 
 	err := scraper.GetData(ctx, tsLoc.URL, results, obs)
 
