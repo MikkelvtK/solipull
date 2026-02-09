@@ -7,8 +7,11 @@ import (
 	"github.com/MikkelvtK/solipull/internal/database"
 	"github.com/MikkelvtK/solipull/internal/models"
 	"os"
+	"reflect"
 	"slices"
+	"strings"
 	"testing"
+	"time"
 )
 
 func setupDB(t *testing.T) (*sql.DB, func()) {
@@ -58,103 +61,83 @@ func createRandomEntries(num int, withCreators bool, t *testing.T) []models.Comi
 	return cbs
 }
 
-//func TestComicBookRepository_BulkSave(t *testing.T) {
-//    type fields struct {
-//        db *sql.DB
-//    }
-//    type args struct {
-//        ctx     context.Context
-//        records []models.ComicBook
-//    }
-//    tests := []struct {
-//        name    string
-//        fields  fields
-//        args    args
-//        wantErr bool
-//    }{
-//        // TODO: Add test cases.
-//    }
-//    for _, tt := range tests {
-//        t.Run(tt.name, func(t *testing.T) {
-//            c := &ComicBookRepository{
-//                db: tt.fields.db,
-//            }
-//            if err := c.BulkSave(tt.args.ctx, tt.args.records); (err != nil) != tt.wantErr {
-//                t.Errorf("BulkSave() error = %v, wantErr %v", err, tt.wantErr)
-//            }
-//        })
-//    }
-//}
-
-func TestComicBookRepository_GetAll(t *testing.T) {
-	db, teardown := setupDB(t)
-	t.Cleanup(func() {
-		if err := db.Close(); err != nil {
-			t.Errorf("Error closing db: %s", err.Error())
-		}
-
-		teardown()
-	})
-
-	type fields struct {
-		db *sql.DB
-	}
+func TestComicBookRepository_GetAll_BulkSave(t *testing.T) {
 	type args struct {
 		ctx context.Context
 		cbs []models.ComicBook
 	}
 	tests := []struct {
-		name         string
-		fields       fields
-		args         args
-		wantLen      int
-		wantErr      bool
-		wantCreators bool
+		name    string
+		args    args
+		wantLen int
+		wantErr bool
 	}{
 		{
 			name: "returns empty list",
-			fields: fields{
-				db: db,
-			},
 			args: args{
 				ctx: context.Background(),
 				cbs: nil,
 			},
-			wantLen:      0,
-			wantErr:      false,
-			wantCreators: false,
+			wantLen: 0,
+			wantErr: false,
 		},
 		{
 			name: "returns non empty list",
-			fields: fields{
-				db: db,
-			},
 			args: args{
 				ctx: context.Background(),
 				cbs: createRandomEntries(10, false, t),
 			},
-			wantLen:      10,
-			wantErr:      false,
-			wantCreators: false,
+			wantLen: 10,
+			wantErr: false,
 		},
 		{
 			name: "returns non empty list with creators",
-			fields: fields{
-				db: db,
-			},
 			args: args{
 				ctx: context.Background(),
 				cbs: createRandomEntries(10, true, t),
 			},
-			wantLen:      10,
-			wantErr:      false,
-			wantCreators: true,
+			wantLen: 10,
+			wantErr: false,
+		},
+		{
+			name: "returns all fields of the comic book",
+			args: args{
+				ctx: context.Background(),
+				cbs: []models.ComicBook{
+					{
+						Title:  "title",
+						Issue:  "1",
+						Pages:  "32",
+						Format: "single",
+						Price:  "$4.99",
+						Creators: []models.Creator{
+							{
+								Name: "creator-1",
+								Role: "writer",
+							},
+						},
+						Publisher:   "dc",
+						ReleaseDate: time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC),
+					},
+				},
+			},
+			wantLen: 1,
+			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			db, teardown := setupDB(t)
+			t.Cleanup(func() {
+				if err := db.Close(); err != nil {
+					t.Errorf("Error closing db: %s", err.Error())
+				}
+
+				teardown()
+			})
+
 			c := &ComicBookRepository{
-				db: tt.fields.db,
+				db: db,
 			}
 
 			if tt.args.cbs != nil {
@@ -171,94 +154,47 @@ func TestComicBookRepository_GetAll(t *testing.T) {
 			if tt.wantLen != len(got) {
 				t.Errorf("GetAll() got = %v, wantLen %v", len(got), tt.wantLen)
 			}
-			if tt.wantCreators {
-				creators := slices.Collect(func(yield func(creator []models.Creator) bool) {
-					for _, cb := range got {
-						if !yield(cb.Creators) {
-							return
-						}
-					}
-				})
-
-				if len(creators) != tt.wantLen {
-					t.Errorf("GetAll() gotCreators = %v, wantLen %v", len(got), tt.wantLen)
-				}
+			slices.SortFunc(got, func(a, b models.ComicBook) int {
+				return strings.Compare(a.Title, b.Title)
+			})
+			if !reflect.DeepEqual(got, tt.args.cbs) {
+				t.Errorf("GetAll() got = %v, want %v", got, tt.args.cbs)
 			}
 		})
 	}
 }
 
-//func TestComicBookRepository_toComicBookEntity(t *testing.T) {
-//    type fields struct {
-//        db *sql.DB
-//    }
-//    type args struct {
-//        cb models.ComicBook
-//    }
-//    tests := []struct {
-//        name   string
-//        fields fields
-//        args   args
-//        want   comicBookEntity
-//    }{
-//        // TODO: Add test cases.
-//    }
-//    for _, tt := range tests {
-//        t.Run(tt.name, func(t *testing.T) {
-//            c := &ComicBookRepository{
-//                db: tt.fields.db,
-//            }
-//            if got := c.toComicBookEntity(tt.args.cb); !reflect.DeepEqual(got, tt.want) {
-//                t.Errorf("toComicBookEntity() = %v, want %v", got, tt.want)
-//            }
-//        })
-//    }
-//}
-//
-//func TestComicBookRepository_toCreatorEntity(t *testing.T) {
-//    type fields struct {
-//        db *sql.DB
-//    }
-//    type args struct {
-//        cbUUID  string
-//        creator models.Creator
-//    }
-//    tests := []struct {
-//        name   string
-//        fields fields
-//        args   args
-//        want   creatorEntity
-//    }{
-//        // TODO: Add test cases.
-//    }
-//    for _, tt := range tests {
-//        t.Run(tt.name, func(t *testing.T) {
-//            c := &ComicBookRepository{
-//                db: tt.fields.db,
-//            }
-//            if got := c.toCreatorEntity(tt.args.cbUUID, tt.args.creator); !reflect.DeepEqual(got, tt.want) {
-//                t.Errorf("toCreatorEntity() = %v, want %v", got, tt.want)
-//            }
-//        })
-//    }
-//}
-//
-//func TestNewComicBookRepository(t *testing.T) {
-//    type args struct {
-//        db *sql.DB
-//    }
-//    tests := []struct {
-//        name string
-//        args args
-//        want *ComicBookRepository
-//    }{
-//        // TODO: Add test cases.
-//    }
-//    for _, tt := range tests {
-//        t.Run(tt.name, func(t *testing.T) {
-//            if got := NewComicBookRepository(tt.args.db); !reflect.DeepEqual(got, tt.want) {
-//                t.Errorf("NewComicBookRepository() = %v, want %v", got, tt.want)
-//            }
-//        })
-//    }
-//}
+func TestNewComicBookRepository(t *testing.T) {
+	db, teardown := setupDB(t)
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("Error closing db: %s", err.Error())
+		}
+
+		teardown()
+	})
+
+	type args struct {
+		db *sql.DB
+	}
+	tests := []struct {
+		name string
+		args args
+		want *ComicBookRepository
+	}{
+		{
+			name: "returns a new ComicBookRepository instance",
+			args: args{
+				db: db,
+			},
+			want: &ComicBookRepository{db: db},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := NewComicBookRepository(tt.args.db); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("NewComicBookRepository() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
